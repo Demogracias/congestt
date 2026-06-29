@@ -26,6 +26,26 @@ const StopIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="cu
 const HistoryIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>);
 const NoteIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>);
 
+function PauseJustificativaModal({ onConfirm, onCancel }) {
+  const [value, setValue] = useState("");
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#0005", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
+      onClick={onCancel}>
+      <div style={{ background: C.white, borderRadius: 16, padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 20px 40px #0004" }}
+        onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 16px", color: C.text, fontSize: 16 }}>Justificativa da Pausa</h3>
+        <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "block", marginBottom: 4 }}>Justificativa (mínimo 3 caracteres):</label>
+        <input value={value} onChange={e => setValue(e.target.value)} autoFocus
+          style={{ width: "100%", padding: "12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box", marginBottom: 16 }} />
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onCancel} style={{ background: C.snow, color: C.muted, border: `1px solid ${C.ghost}`, borderRadius: 8, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+          <button onClick={() => onConfirm(value)} style={{ background: C.lilac, color: C.white, border: "none", borderRadius: 8, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Confirmar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatTime(seconds) {
   if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) seconds = 0;
   const h = Math.floor(seconds / 3600);
@@ -333,6 +353,7 @@ export default function Planner() {
   const [filtroEmpresa, setFiltroEmpresa] = useState(null);
   const [filtroConta, setFiltroConta] = useState(null);
   const [filtroMes, setFiltroMes] = useState(null);
+  const [subAtiva, setSubAtiva] = useState("ativas");
   const [subatividades, setSubatividades] = useState([]);
   const [form, setForm] = useState({
     empresaId: '', titulo: '', descricao: '', responsaveis: [],
@@ -341,8 +362,22 @@ export default function Planner() {
   });
   const [promptState, setPromptState] = useState({ open: false, title: '', label: '', onConfirm: () => {} });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: () => {} });
+  const [pauseModal, setPauseModal] = useState({ open: false, id: null, step: 'tipo', tipo: 'pausa' });
   const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
   const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: () => {} });
+
+  const arquivarConcluidas = (ativs) => {
+    const concluidas = ativs.filter(a => a.status === 'completed').sort((a, b) => new Date(b.dataFim || 0) - new Date(a.dataFim || 0));
+    if (concluidas.length <= 50) return { ativas: ativs, arquivadas: [] };
+    const arquivadas = concluidas.slice(50);
+    const ativas = ativs.filter(a => !arquivadas.includes(a));
+    return { ativas, arquivadas };
+  };
+
+  const getAtividadesParaVisao = () => {
+    const { ativas, arquivadas } = arquivarConcluidas(atividades);
+    return subAtiva === 'arquivadas' ? arquivadas : ativas;
+  };
 
   useEffect(() => {
     Promise.all([
@@ -462,9 +497,24 @@ export default function Planner() {
   const handleAction = async (id, action, body = {}) => {
     try {
       const res = await fetch(`/api/planner/${id}/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (res.ok) { fetchAtividades(); toast("Ação realizada!", "success"); }
+      if (res.ok) { 
+        fetchAtividades(); 
+        if (action === 'complete') {
+          checkAndArchive();
+        }
+        toast("Ação realizada!", "success"); 
+      }
       else { const err = await res.json(); toast(err.message || "Erro na requisição", "error"); }
     } catch (e) { toast("Erro de rede: " + e.message, "error"); }
+  };
+
+  const checkAndArchive = () => {
+    const concluidas = (atividades || []).filter(a => a.status === 'completed').sort((a, b) => new Date(b.dataFim || b.updatedAt || 0) - new Date(a.dataFim || a.updatedAt || 0));
+    if (concluidas.length > 50) {
+      const paraArquivar = concluidas.slice(50);
+      const idsArquivar = paraArquivar.map(a => a.id);
+      setAtividades(prev => prev.map(a => idsArquivar.includes(a.id) ? { ...a, arquivada: true } : a));
+    }
   };
 
   const handleBloqueio = async (id) => {
@@ -485,22 +535,7 @@ export default function Planner() {
   };
 
   const handlePause = (id) => {
-    setPromptState({
-      open: true, title: "Tipo de pausa", label: "",
-      onConfirm: (tipo) => {
-        if (tipo === "1") {
-          setPromptState({
-            open: true, title: "Justificativa", label: "Justificativa da pausa (mínimo 3 caracteres):",
-            onConfirm: (j) => {
-              if (!j || j.trim().length < 3) { toast("Mínimo 3 caracteres", "error"); return; }
-              handleAction(id, "pause", { justificativa: j.trim(), tipo: "pausa" });
-            }
-          });
-        } else if (tipo === "2") {
-          handleAction(id, "pause", { justificativa: "Fim de expediente", tipo: "fim_expediente" });
-        }
-      }
-    });
+    setPauseModal({ open: true, id, step: 'tipo', tipo: 'pausa' });
   };
 
   const handleEdit = async (e) => {
@@ -609,6 +644,14 @@ export default function Planner() {
         )}
 
       {visao === "lista" && (
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {["ativas", "arquivadas"].map(s => (
+            <button key={s} onClick={() => setSubAtiva(s)} style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, border: `1.5px solid ${subAtiva === s ? C.lilac : C.ghost}`, background: subAtiva === s ? C.lilac : C.white, color: subAtiva === s ? C.white : C.muted, cursor: "pointer" }}>{s === "ativas" ? "Ativas" : "Arquivo Antigo"}</button>
+          ))}
+        </div>
+      )}
+
+      {visao === "lista" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, alignItems: "start" }}>
            {statusList.map(st => {
               let filtered = (atividades || []).filter(a => a.status === st.key);
@@ -628,6 +671,11 @@ export default function Planner() {
              }
               if (filtroMes !== null) {
                 filtered = filtered.filter(a => (a.meses || []).some(m => m === filtroMes || m.startsWith(filtroMes)));
+              }
+              if (subAtiva === "ativas") {
+                filtered = filtered.filter(a => !a.arquivada);
+              } else if (subAtiva === "arquivadas") {
+                filtered = filtered.filter(a => a.arquivada);
               }
               return (
                <div key={st.key}>
@@ -670,6 +718,14 @@ export default function Planner() {
       )}
 
       {visao === "grupo" && (
+        <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+          {["ativas", "arquivadas"].map(s => (
+            <button key={s} onClick={() => setSubAtiva(s)} style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, border: `1.5px solid ${subAtiva === s ? C.lilac : C.ghost}`, background: subAtiva === s ? C.lilac : C.white, color: subAtiva === s ? C.white : C.muted, cursor: "pointer" }}>{s === "ativas" ? "Ativas" : "Arquivo Antigo"}</button>
+          ))}
+        </div>
+      )}
+
+      {visao === "grupo" && (
         <div style={{ overflowX: "auto" }}>
           <div style={{ display: "flex", gap: 16, minWidth: "max-content" }}>
              { (empresas || []).map(emp => {
@@ -687,6 +743,11 @@ export default function Planner() {
                }
                 if (filtroMes !== null) {
                   ativs = ativs.filter(a => (a.meses || []).some(m => m === filtroMes || m.startsWith(filtroMes)));
+                }
+                if (subAtiva === "ativas") {
+                  ativs = ativs.filter(a => !a.arquivada);
+                } else if (subAtiva === "arquivadas") {
+                  ativs = ativs.filter(a => a.arquivada);
                 }
                 if (ativs.length === 0) return null;
               return (
@@ -711,10 +772,10 @@ export default function Planner() {
                 </div>
               );
             })}
-             <div style={{ minWidth: 260 }}>
-               <div style={{ fontWeight: 700, fontSize: 14, color: C.muted, marginBottom: 8, padding: "0 4px" }}>Sem empresa <Badge label={(atividades || []).filter(a => !a.empresaId).length} color={C.muted} /></div>
-               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                 {(atividades || []).filter(a => !a.empresaId).map(ativ => (
+<div style={{ minWidth: 260 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: C.muted, marginBottom: 8, padding: "0 4px" }}>Sem empresa <Badge label={(atividades || []).filter(a => !a.empresaId && (subAtiva === "ativas" ? !a.arquivada : a.arquivada)).length} color={C.muted} /></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {(atividades || []).filter(a => !a.empresaId && (subAtiva === "ativas" ? !a.arquivada : a.arquivada)).map(ativ => (
                   <Card key={ativ.id} style={{ padding: "10px 12px", borderLeft: `3px solid ${C.muted}` }}>
                     <div style={{ fontWeight: 600, fontSize: 12, color: C.text }}>{ativ.titulo}</div>
                     <div style={{ fontSize: 10, color: C.muted }}>{formatTime(elapsed[ativ.id] || 0)}</div>
@@ -772,6 +833,51 @@ export default function Planner() {
       )}
 
         {showDetailModal && <TaskDetailModal ativ={showDetailModal} onClose={() => setShowDetailModal(null)} empresas={empresas} contas={contas} onEdit={openEdit} atividades={atividades} />}
+
+      {pauseModal.open && pauseModal.step === 'tipo' && (
+        <div style={{ position: "fixed", inset: 0, background: "#0005", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
+          onClick={() => setPauseModal({ ...pauseModal, open: false })}>
+          <div style={{ background: C.white, borderRadius: 16, padding: 28, width: "100%", maxWidth: 400, boxShadow: "0 20px 40px #0004" }}
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 16px", color: C.text, fontSize: 16 }}>Tipo de pausa</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: 8, borderRadius: 8, border: `1px solid ${C.ghost}`, background: pauseModal.tipo === 'pausa' ? C.snow : C.white }}>
+                <input type="radio" name="tipoPausa" checked={pauseModal.tipo === 'pausa'} onChange={() => setPauseModal({ ...pauseModal, tipo: 'pausa' })} />
+                <span style={{ fontWeight: 600, color: C.text }}>Pausa Normal</span>
+                <span style={{ marginLeft: "auto", fontSize: 10, color: C.muted }}>(ex: reunião, almoço, suporte)</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: 8, borderRadius: 8, border: `1px solid ${C.ghost}`, background: pauseModal.tipo === 'fim_expediente' ? C.snow : C.white }}>
+                <input type="radio" name="tipoPausa" checked={pauseModal.tipo === 'fim_expediente'} onChange={() => setPauseModal({ ...pauseModal, tipo: 'fim_expediente' })} />
+                <span style={{ fontWeight: 600, color: C.text }}>Fim de Expediente</span>
+                <span style={{ marginLeft: "auto", fontSize: 10, color: C.muted }}>(encerra dia sem justificativa)</span>
+              </label>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setPauseModal({ ...pauseModal, open: false })} style={{ background: C.snow, color: C.muted, border: `1px solid ${C.ghost}`, borderRadius: 8, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+              <button onClick={() => {
+                if (pauseModal.tipo === 'fim_expediente') {
+                  handleAction(pauseModal.id, "pause", { justificativa: "Fim de expediente", tipo: "fim_expediente" });
+                  setPauseModal({ ...pauseModal, open: false });
+                } else {
+                  setPauseModal({ ...pauseModal, step: 'justificativa' });
+                }
+              }} style={{ background: C.lilac, color: C.white, border: "none", borderRadius: 8, padding: "10px 20px", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Continuar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pauseModal.open && pauseModal.step === 'justificativa' && (
+        <PauseJustificativaModal
+          onConfirm={(j) => {
+            if (!j || j.trim().length < 3) { toast("Mínimo 3 caracteres", "error"); return; }
+            handleAction(pauseModal.id, "pause", { justificativa: j.trim(), tipo: "pausa" });
+            setPauseModal({ ...pauseModal, open: false });
+          }}
+          onCancel={() => setPauseModal({ ...pauseModal, open: false })}
+        />
+      )}
+
        <PromptModal
          open={promptState.open}
          title={promptState.title}

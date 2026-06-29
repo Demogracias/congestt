@@ -26,7 +26,8 @@ export default function Dashboard() {
   const [equipeFiltro, setEquipeFiltro] = useState("Todas");
   const [selectedEquipe, setSelectedEquipe] = useState(null);
 
-  const anos = Array.from({ length: 5 }, (_, i) => ano - 4 + i);
+  const curYear = new Date().getFullYear();
+  const anos = Array.from({ length: 21 }, (_, i) => curYear - 10 + i);
 
   const fetchData = (a, eq) => {
     setLoading(true);

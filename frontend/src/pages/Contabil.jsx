@@ -24,8 +24,10 @@ const DownloadIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill
 
 const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-function ContaRow({ conta, contas = [], mesesStatus = [], level = 0, ano }) {
-  const filhos = (contas || []).filter(c => c.contaPaiId === conta.id);
+function ContaRow({ conta, gradeData = [], level = 0, ano }) {
+  const entry = gradeData.find(g => g.conta?.id === conta.id);
+  const mesesStatus = entry ? entry.meses : [];
+  const filhos = gradeData.filter(g => g.conta?.contaPaiId === conta.id).map(g => g.conta);
   return (
     <>
       <tr style={{ borderBottom: `1px solid ${C.snow}`, background: level === 0 ? C.snow : "transparent" }}
@@ -59,7 +61,7 @@ function ContaRow({ conta, contas = [], mesesStatus = [], level = 0, ano }) {
         ))}
       </tr>
       {(filhos || []).map(filho => (
-        <ContaRow key={filho.id} conta={filho} contas={contas} mesesStatus={mesesStatus} level={level + 1} ano={ano} />
+        <ContaRow key={filho.id} conta={filho} gradeData={gradeData} level={level + 1} ano={ano} />
       ))}
     </>
   );
@@ -81,7 +83,7 @@ export default function GestaoContabil() {
   const [formConta, setFormConta] = useState({ empresaId: "", codigo: "", nome: "", tipo: "Ativo", natureza: "Analítica", contaPaiId: "" });
 
   const curYear = new Date().getFullYear();
-  const anos = [curYear - 4, curYear - 3, curYear - 2, curYear - 1, curYear];
+  const anos = Array.from({ length: 21 }, (_, i) => curYear - 10 + i);
   const filtrosRef = useRef({ filtroEmpresa, ano });
 
   useEffect(() => { filtrosRef.current = { filtroEmpresa, ano }; }, [filtroEmpresa, ano]);
@@ -233,8 +235,8 @@ export default function GestaoContabil() {
             </thead>
             <tbody>
                {(gradeData?.grade || []).filter(c => c.conta && !c.conta.contaPaiId).map(conta => (
-                 <ContaRow key={conta.conta.id} conta={conta.conta} contas={(gradeData?.grade || []).map(g => g.conta)} mesesStatus={conta.meses} ano={ano} />
-               ))}
+                  <ContaRow key={conta.conta.id} conta={conta.conta} gradeData={gradeData.grade} ano={ano} />
+                ))}
             </tbody>
           </table>
         </Card>

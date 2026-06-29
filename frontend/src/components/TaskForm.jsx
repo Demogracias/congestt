@@ -33,10 +33,9 @@ export default function TaskForm({
       const emp = safeArray(empresas).find(e => e.id === form.empresaId);
       if (emp) {
         const eq = safeArray(equipes).find(e => e.nome === emp.equipe);
-        const membrosObj = eq?.membros || {};
-        const membrosNomes = Object.values(membrosObj).map(m => m?.nome).filter(Boolean);
-        if (membrosNomes.length) {
-          filtered = filtered.filter(u => membrosNomes.includes((u?.email || '').split('@')[0]));
+        const membrosIds = safeArray(eq?.membros).map(m => m?.id).filter(Boolean);
+        if (membrosIds.length) {
+          filtered = filtered.filter(u => membrosIds.includes(u?.id));
         }
       }
     }
@@ -45,7 +44,8 @@ export default function TaskForm({
 
   const safeMeses = safeArray(form?.meses);
   const curYear = new Date().getFullYear();
-  const yearList = [curYear - 1, curYear, curYear + 1, curYear + 2];
+  const yearList = [];
+  for (let y = curYear - 10; y <= curYear + 10; y++) yearList.push(y);
   const monthNames = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
   const monthStrs = ["01","02","03","04","05","06","07","08","09","10","11","12"];
 
@@ -78,6 +78,12 @@ export default function TaskForm({
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(e); }} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {(!isView) && (
+        <div style={{ fontSize: 11, color: C.danger, marginTop: -8, marginBottom: 8, fontWeight: 500 }}>
+          ⚠ Selecione pelo menos um responsável pela tarefa
+        </div>
+      )}
+
       <div>
         <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "block", marginBottom: 4 }}>Título *</label>
         <input 
