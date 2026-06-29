@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data');
 
@@ -9,6 +10,10 @@ function ensureDir() {
       console.error('[Persistence] Erro ao criar diretório:', e);
     }
   }
+}
+
+export function generateId(): string {
+  return crypto.randomUUID();
 }
 
 export class Persistence<T extends { id: string }> {
@@ -39,21 +44,20 @@ export class Persistence<T extends { id: string }> {
   }
 
   private flushSync(data?: T[]) {
-    try {
       ensureDir();
       const tmp = this.filePath + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(data ?? this.data, null, 2));
       fs.renameSync(tmp, this.filePath);
-    } catch (e) {
-      console.error(`[Persistence] Error writing ${this.filePath}:`, e);
-    }
   }
 
   private async flush(data?: T[]) {
-    this.writeQueue = this.writeQueue.then(() => {
+    const chain = this.writeQueue.then(() => {
       this.flushSync(data);
     });
-    return this.writeQueue;
+    this.writeQueue = chain.catch(err => {
+      console.error('[Persistence] Erro ao escrever, resetando fila:', err);
+    });
+    return chain;
   }
 
   getAll(): T[] { return [...this.data]; }

@@ -8,6 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import Relatorios from "./pages/Relatorios";
 import Config from "./pages/Config";
 import Logo from "./components/Logo";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { ToastProvider, useToast } from "./components/Toast";
 
 const C = {
   deep:    "#1E1245",
@@ -198,6 +200,7 @@ function Sidebar({ active, setActive, collapsed, setCollapsed }) {
 
 function Topbar({ title, subtitle, user, onNavigate }) {
   const initials = user?.email ? user.email.charAt(0).toUpperCase() + (user.email.split('@')[0].slice(-1) || '').toUpperCase() : '?';
+  const toast = useToast();
   return (
     <header style={{
       height: 60, background: C.white, borderBottom: `1px solid ${C.ghost}`,
@@ -211,9 +214,9 @@ function Topbar({ title, subtitle, user, onNavigate }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={() => {
           fetch("/api/planner/alertas").then(r => r.json()).then(alertas => {
-            if (alertas.length === 0) { alert("Nenhum alerta no momento."); return; }
-            alert(alertas.map(a => `• ${a.mensagem}`).join("\n"));
-          }).catch(() => alert("Erro ao buscar alertas"));
+            if (alertas.length === 0) { toast("Nenhum alerta no momento.", "info"); return; }
+            alertas.forEach(a => toast(`• ${a.mensagem}`, "info"));
+          }).catch(() => toast("Erro ao buscar alertas", "error"));
         }} style={{
           background: C.snow, border: `1px solid ${C.ghost}`, borderRadius: 8,
           padding: "7px 10px", cursor: "pointer", color: C.muted, position: "relative",
@@ -318,17 +321,21 @@ export default function App() {
   const PageComponent = page.component;
 
   return (
-    <div style={{
-      display: "flex", height: "100vh", width: "100vw", overflow: "hidden",
-      fontFamily: "'Inter', sans-serif", background: C.snow, color: C.text,
-    }}>
-      <Sidebar active={active} setActive={setActive} collapsed={collapsed} setCollapsed={setCollapsed} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Topbar title={page.title} subtitle={page.subtitle} user={user} onNavigate={setActive} />
-        <main style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
-          <PageComponent />
-        </main>
-      </div>
-    </div>
+    <ErrorBoundary>
+      <ToastProvider>
+        <div style={{
+          display: "flex", height: "100vh", width: "100vw", overflow: "hidden",
+          fontFamily: "'Inter', sans-serif", background: C.snow, color: C.text,
+        }}>
+          <Sidebar active={active} setActive={setActive} collapsed={collapsed} setCollapsed={setCollapsed} />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <Topbar title={page.title} subtitle={page.subtitle} user={user} onNavigate={setActive} />
+            <main style={{ flex: 1, overflow: "auto", padding: "24px 28px" }}>
+              <PageComponent />
+            </main>
+          </div>
+        </div>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }

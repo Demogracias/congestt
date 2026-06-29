@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useToast } from "../components/Toast";
 
 const C = {
   deep: "#1E1245", purple: "#2D1B69", mid: "#4A2C8F", lilac: "#7C5CBF",
@@ -18,6 +19,7 @@ function Btn({ children, variant = "primary", onClick, style = {} }) {
 }
 
 export default function Config() {
+  const toast = useToast();
   const user = JSON.parse(localStorage.getItem('user')) || {};
   const [aba, setAba] = useState("perfil");
   const [auditLogs, setAuditLogs] = useState([]);
@@ -32,10 +34,11 @@ export default function Config() {
       fetch("/api/lgpd/anonimizacao").then(r => r.json()),
     ]).then(([a, c, an]) => {
       setAuditLogs(a); setConsentimentos(c); setAnonimizacoes(an); setLoading(false);
-    });
+    }).catch(() => { setLoading(false); toast("Erro ao carregar dados", "error"); });
   }, []);
 
   const registrarConsentimento = async (tipo, aceito) => {
+    if (!user?.id) { toast("Usuário não identificado", "error"); return; }
     const res = await fetch("/api/lgpd/consentimentos", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ usuarioId: user.id, tipo, aceito }),
@@ -48,6 +51,7 @@ export default function Config() {
 
   const solicitarAnonimizacao = async () => {
     if (!confirm("Tem certeza? Esta ação solicitará a anonimização dos seus dados pessoais.")) return;
+    if (!user?.id) { toast("Usuário não identificado", "error"); return; }
     const res = await fetch("/api/lgpd/anonimizacao", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ usuarioId: user.id }),
@@ -57,7 +61,7 @@ export default function Config() {
       setAnonimizacoes(data);
     } else {
       const err = await res.json();
-      alert(err.message);
+      toast(err.message, "error");
     }
   };
 

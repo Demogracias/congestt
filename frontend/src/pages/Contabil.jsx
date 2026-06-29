@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useToast } from "../components/Toast";
 
 const C = {
   deep: "#1E1245", purple: "#2D1B69", mid: "#4A2C8F", lilac: "#7C5CBF",
@@ -65,6 +66,7 @@ function ContaRow({ conta, contas = [], mesesStatus = [], level = 0, ano }) {
 }
 
 export default function GestaoContabil() {
+  const toast = useToast();
   const [contas, setContas] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [equipes, setEquipes] = useState([]);
@@ -114,7 +116,7 @@ export default function GestaoContabil() {
     const plannerHandler = () => {
       const { filtroEmpresa: fe, ano: a } = filtrosRef.current;
       if (fe && a) {
-        fetch(`/api/contabil/grade?empresaId=${fe}&ano=${a}`).then(r => r.json()).then(setGradeData);
+        fetch(`/api/contabil/grade?empresaId=${fe}&ano=${a}`).then(r => r.json()).then(setGradeData).catch(() => {});
       }
     };
     window.addEventListener("planner-updated", plannerHandler);
@@ -141,13 +143,15 @@ export default function GestaoContabil() {
 
   const handleCriarConta = async (e) => {
     e.preventDefault();
-    const res = await fetch("/api/contabil/contas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(formConta) });
-    if (res.ok) { setShowContaModal(false); setFormConta({ empresaId: "", codigo: "", nome: "", tipo: "Ativo", natureza: "Analítica", contaPaiId: "" }); fetchData(); }
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch("/api/contabil/contas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(formConta) });
+      if (res.ok) { setShowContaModal(false); setFormConta({ empresaId: "", codigo: "", nome: "", tipo: "Ativo", natureza: "Analítica", contaPaiId: "" }); fetchData(); }
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const handleUpload = async () => {
-    if (!uploadFile || !filtroEmpresa) { alert("Selecione uma empresa e um arquivo"); return; }
+    if (!uploadFile || !filtroEmpresa) { toast("Selecione uma empresa e um arquivo", "info"); return; }
     try {
       let text = await uploadFile.text();
       // Remove BOM and normalize line endings
@@ -155,13 +159,20 @@ export default function GestaoContabil() {
       const linhas = text.split('\n').map(l => l.trim()).filter(Boolean).slice(1);
       const raw = [];
       for (const l of linhas) {
-        const parts = l.split(';').map(s => s.trim().replace(/^"(.*)"$/, '$1'));
+        const parts = [];
+        let current = '', inQuotes = false;
+        for (const ch of l) {
+          if (ch === '"') { inQuotes = !inQuotes; continue; }
+          if (ch === ';' && !inQuotes) { parts.push(current.trim()); current = ''; continue; }
+          current += ch;
+        }
+        parts.push(current.trim());
         if (parts.length < 4) continue;
         const [codigo, nome, tipo, natureza, contaPaiCodigo] = parts;
         raw.push({ codigo, nome, tipo, natureza, contaPaiCodigo: contaPaiCodigo || '' });
       }
       // Generate temp IDs and resolve parent references in a second pass
-      for (const r of raw) { r.id = Math.random().toString(36).substr(2, 9); }
+      for (const r of raw) { r.id = crypto.randomUUID ? crypto.randomUUID() : 't' + Date.now() + Math.random().toString(36).slice(2, 7); }
       for (const r of raw) {
         if (!r.contaPaiCodigo) { r.contaPaiId = undefined; continue; }
         const pai = raw.find(p => p.codigo === r.contaPaiCodigo);
@@ -169,9 +180,9 @@ export default function GestaoContabil() {
       }
       const contasImport = raw.map(r => ({ codigo: r.codigo, nome: r.nome, tipo: r.tipo, natureza: r.natureza, contaPaiId: r.contaPaiId }));
       const res = await fetch("/api/contabil/contas/importar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ empresaId: filtroEmpresa, contas: contasImport }) });
-      if (res.ok) { alert("Plano de contas importado!"); setShowUploadModal(false); fetchData(); }
-      else { const err = await res.json(); alert(err.message); }
-    } catch (err) { alert("Erro ao processar arquivo: " + err.message); }
+      if (res.ok) { toast("Plano de contas importado!", "success"); setShowUploadModal(false); fetchData(); }
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (err) { toast("Erro ao processar arquivo: " + err.message, "error"); }
   };
 
   const baixarModelo = () => {

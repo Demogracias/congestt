@@ -25,6 +25,7 @@ const icons = {
 };
 
 function formatTime(segundos) {
+  if (typeof segundos !== 'number' || isNaN(segundos) || segundos < 0) segundos = 0;
   const h = Math.floor(segundos / 3600);
   const m = Math.floor((segundos % 3600) / 60);
   return `${h}h ${m}min`;
@@ -43,15 +44,19 @@ function RelatorioView({ tipo }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [fetchError, setFetchError] = useState(false);
+
   useEffect(() => {
     setLoading(true);
+    setFetchError(false);
     fetch(`/api/relatorios/${tipo}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(() => { setLoading(false); setFetchError(true); });
   }, [tipo]);
 
   if (loading) return <div style={{ padding: 20, color: C.muted, textAlign: "center" }}>Carregando...</div>;
+  if (fetchError) return <div style={{ padding: 20, color: C.danger, textAlign: "center" }}>Erro ao carregar relatório.</div>;
   if (!data || data.length === 0) return <div style={{ padding: 20, color: C.muted, textAlign: "center" }}>Nenhum dado disponível.</div>;
 
   const keys = Object.keys(data[0]);

@@ -1,4 +1,4 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 
 export interface Pausa {
   inicio: string;
@@ -105,7 +105,7 @@ export class PlannerService {
     }
 
     const nova: Atividade = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       empresaId: dados.empresaId,
       tag: dados.tag,
       titulo: dados.titulo,
@@ -126,7 +126,7 @@ export class PlannerService {
       pausas: [],
       observacoes: '',
       blocosNota: [],
-      historico: [{ id: Math.random().toString(36).substr(2, 9), acao: 'criada', detalhes: 'Tarefa criada', data: new Date().toISOString() }],
+      historico: [{ id: generateId(), acao: 'criada', detalhes: 'Tarefa criada', data: new Date().toISOString() }],
       onTime: true,
       extensoes: [],
       alertaEnviado: false,
@@ -134,12 +134,12 @@ export class PlannerService {
       createdAt: new Date().toISOString(),
     };
 
-    this.persistence.add(nova);
+    await this.persistence.add(nova);
 
     if (dados.paiId) {
       const pai = this.persistence.getById(dados.paiId);
       if (pai) {
-        this.persistence.update(pai.id, { filhosIds: [...(pai.filhosIds || []), nova.id] });
+        await this.persistence.update(pai.id, { filhosIds: [...(pai.filhosIds || []), nova.id] });
       }
     }
 
@@ -168,21 +168,35 @@ export class PlannerService {
         fim.setMonth(fim.getMonth() + i * intervalo);
       }
       const nova: Atividade = {
-        ...base,
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateId(),
+        empresaId: base.empresaId,
+        tag: base.tag,
+        titulo: base.titulo,
+        descricao: base.descricao,
+        responsaveis: base.responsaveis,
+        meses: base.meses,
+        contaContabilIds: base.contaContabilIds,
+        contaContabilNomes: base.contaContabilNomes,
         dataInicio: inicio.toISOString().split('T')[0],
         dataFim: fim.toISOString().split('T')[0],
         dataFimOriginal: base.dataFimOriginal || base.dataFim,
-      bloqueadoPor: [],
-      status: 'pending',
+        paiId: base.paiId,
+        filhosIds: [],
+        nivel: base.nivel || 0,
+        status: 'pending',
+        bloqueadoPor: [],
         timerTotal: 0,
         pausas: [],
+        observacoes: '',
         blocosNota: [],
         historico: [],
+        onTime: true,
         extensoes: [],
+        alertaEnviado: false,
+        recorrencia: base.recorrencia,
         createdAt: new Date().toISOString(),
       };
-      this.persistence.add(nova);
+      await this.persistence.add(nova);
     }
   }
 
@@ -195,12 +209,12 @@ export class PlannerService {
       if (filho && filho.status !== status) {
         const agora = new Date().toISOString();
         const historico = [...(filho.historico || []), { 
-          id: Math.random().toString(36).substr(2, 9), 
+          id: generateId(), 
           acao: 'status_atualizado_cascata', 
           detalhes: `Status alterado para ${status} devido à atividade pai`, 
           data: agora 
         }];
-        this.persistence.update(filhoId, { status, historico });
+        await this.persistence.update(filhoId, { status, historico });
         await this.atualizarStatusCascata(filhoId, status);
       }
     }
@@ -227,8 +241,8 @@ export class PlannerService {
     if (running && running.id !== id) throw new Error('Usuário já possui atividade em andamento');
 
     const agora = new Date().toISOString();
-    const historico = [...(atv.historico || []), { id: Math.random().toString(36).substr(2, 9), acao: 'iniciada', detalhes: 'Timer iniciado', data: agora, usuario: usuarioId }];
-    this.persistence.update(id, { status: 'running', timerStart: agora, historico });
+    const historico = [...(atv.historico || []), { id: generateId(), acao: 'iniciada', detalhes: 'Timer iniciado', data: agora, usuario: usuarioId }];
+    await this.persistence.update(id, { status: 'running', timerStart: agora, historico });
     return this.persistence.getById(id);
   }
 
@@ -246,8 +260,8 @@ export class PlannerService {
     }
 
     const pausas = [...(atv.pausas || []), { inicio: agora, justificativa, tipo, tarefaVinculadaId }];
-    const historico = [...(atv.historico || []), { id: Math.random().toString(36).substr(2, 9), acao: tipo === 'fim_expediente' ? 'pausa_fim_expediente' : 'pausa', detalhes: justificativa || 'Fim de expediente', data: agora }];
-    this.persistence.update(id, { status: 'paused', timerTotal, timerStart: undefined, pausas, historico });
+    const historico = [...(atv.historico || []), { id: generateId(), acao: tipo === 'fim_expediente' ? 'pausa_fim_expediente' : 'pausa', detalhes: justificativa || 'Fim de expediente', data: agora }];
+    await this.persistence.update(id, { status: 'paused', timerTotal, timerStart: undefined, pausas, historico });
     
     await this.atualizarStatusCascata(id, 'paused');
     
@@ -265,8 +279,8 @@ export class PlannerService {
       ultimaPausa.fim = new Date().toISOString();
     }
 
-    const historico = [...(atv.historico || []), { id: Math.random().toString(36).substr(2, 9), acao: tipo === 'inicio_expediente' ? 'retomada_inicio_expediente' : 'retomada', detalhes: tipo === 'inicio_expediente' ? 'Início de expediente' : 'Retomada manual', data: new Date().toISOString() }];
-    this.persistence.update(id, { status: 'running', timerStart: new Date().toISOString(), pausas, historico });
+    const historico = [...(atv.historico || []), { id: generateId(), acao: tipo === 'inicio_expediente' ? 'retomada_inicio_expediente' : 'retomada', detalhes: tipo === 'inicio_expediente' ? 'Início de expediente' : 'Retomada manual', data: new Date().toISOString() }];
+    await this.persistence.update(id, { status: 'running', timerStart: new Date().toISOString(), pausas, historico });
     
     await this.atualizarStatusCascata(id, 'running');
     
@@ -288,8 +302,8 @@ export class PlannerService {
     const deadlineEnd = new Date(atv.dataFim + 'T23:59:59');
     const onTime = atv.extensoes.length === 0 && !(agora > deadlineEnd);
 
-    const historico = [...(atv.historico || []), { id: Math.random().toString(36).substr(2, 9), acao: 'concluida', detalhes: onTime ? 'Concluída no prazo' : 'Concluída fora do prazo', data: agoraISO }];
-    this.persistence.update(id, {
+    const historico = [...(atv.historico || []), { id: generateId(), acao: 'concluida', detalhes: onTime ? 'Concluída no prazo' : 'Concluída fora do prazo', data: agoraISO }];
+    await this.persistence.update(id, {
       status: 'completed',
       timerStart: undefined,
       timerTotal,
@@ -315,8 +329,8 @@ export class PlannerService {
     novaData.setDate(novaData.getDate() + dias);
 
     const extensoes = [...(atv.extensoes || []), { dias, justificativa, criadaEm: new Date().toISOString() }];
-    const historico = [...(atv.historico || []), { id: Math.random().toString(36).substr(2, 9), acao: 'prazo_estendido', detalhes: `Prazo estendido em ${dias} dias: ${justificativa}`, data: new Date().toISOString() }];
-    this.persistence.update(id, {
+    const historico = [...(atv.historico || []), { id: generateId(), acao: 'prazo_estendido', detalhes: `Prazo estendido em ${dias} dias: ${justificativa}`, data: new Date().toISOString() }];
+    await this.persistence.update(id, {
       dataFim: novaData.toISOString().split('T')[0],
       extensoes,
       historico,
@@ -329,9 +343,9 @@ export class PlannerService {
     const atv = this.persistence.getById(id);
     if (!atv) throw new Error('Atividade não encontrada');
 
-    const bloco: BlocoNota = { id: Math.random().toString(36).substr(2, 9), texto, criadoEm: new Date().toISOString(), autor };
+    const bloco: BlocoNota = { id: generateId(), texto, criadoEm: new Date().toISOString(), autor };
     const blocosNota = [...(atv.blocosNota || []), bloco];
-    this.persistence.update(id, { blocosNota });
+    await this.persistence.update(id, { blocosNota });
     return bloco;
   }
 
@@ -339,7 +353,7 @@ export class PlannerService {
     const atv = this.persistence.getById(id);
     if (!atv) return;
 
-    this.persistence.update(id, { nivel: novoNivel });
+    await this.persistence.update(id, { nivel: novoNivel });
 
     if (atv.filhosIds && atv.filhosIds.length > 0) {
       for (const filhoId of atv.filhosIds) {
@@ -372,19 +386,18 @@ export class PlannerService {
       if (atv.paiId) {
         const oldPai = this.persistence.getById(atv.paiId);
         if (oldPai && oldPai.filhosIds) {
-          this.persistence.update(oldPai.id, { filhosIds: oldPai.filhosIds.filter(fid => fid !== id) });
+          await this.persistence.update(oldPai.id, { filhosIds: oldPai.filhosIds.filter(fid => fid !== id) });
         }
       }
-      // Add to new parent
       if (dados.paiId) {
         const newPai = this.persistence.getById(dados.paiId);
         if (newPai) {
-          this.persistence.update(newPai.id, { filhosIds: [...(newPai.filhosIds || []), id] });
+          await this.persistence.update(newPai.id, { filhosIds: [...(newPai.filhosIds || []), id] });
         }
       }
     }
 
-    this.persistence.update(id, dados);
+    await this.persistence.update(id, dados);
     
     if (dados.paiId !== undefined) {
       const pai = this.persistence.getById(dados.paiId || '');
@@ -403,13 +416,13 @@ export class PlannerService {
 
     const bloqueadoPor = [...(atv.bloqueadoPor || []), bloqueadorId];
     const historico = [...(atv.historico || []), { 
-      id: Math.random().toString(36).substr(2, 9), 
+      id: generateId(), 
       acao: 'bloqueio_adicionado', 
       detalhes: `Tarefa bloqueada por: ${bloqueador.titulo}`, 
       data: new Date().toISOString() 
     }];
     
-    this.persistence.update(id, { bloqueadoPor, historico });
+    await this.persistence.update(id, { bloqueadoPor, historico });
     return this.persistence.getById(id);
   }
 
@@ -419,13 +432,13 @@ export class PlannerService {
 
     const bloqueadoPor = (atv.bloqueadoPor || []).filter(bid => bid !== bloqueadorId);
     const historico = [...(atv.historico || []), { 
-      id: Math.random().toString(36).substr(2, 9), 
+      id: generateId(), 
       acao: 'bloqueio_removido', 
       detalhes: `Bloqueio removido`, 
       data: new Date().toISOString() 
     }];
     
-    this.persistence.update(id, { bloqueadoPor, historico });
+    await this.persistence.update(id, { bloqueadoPor, historico });
     return this.persistence.getById(id);
   }
 
@@ -436,7 +449,7 @@ export class PlannerService {
     if (atv.paiId) {
       const pai = this.persistence.getById(atv.paiId);
       if (pai && pai.filhosIds) {
-        this.persistence.update(pai.id, { filhosIds: pai.filhosIds.filter(fid => fid !== id) });
+        await this.persistence.update(pai.id, { filhosIds: pai.filhosIds.filter(fid => fid !== id) });
       }
     }
 
@@ -446,7 +459,7 @@ export class PlannerService {
       }
     }
 
-    const ok = this.persistence.delete(id);
+    const ok = await this.persistence.delete(id);
     if (!ok) throw new Error('Erro ao remover atividade');
   }
 
@@ -460,7 +473,7 @@ export class PlannerService {
       if (atv.status === 'running' && atv.timerStart) {
         const decorrido = (agora.getTime() - new Date(atv.timerStart).getTime()) / 1000;
         if (decorrido > 1800) {
-          this.persistence.update(atv.id, { alertaEnviado: true });
+          await this.persistence.update(atv.id, { alertaEnviado: true });
           alertas.push({ id: atv.id, tipo: 'tempo_excedido', mensagem: `Atividade "${atv.titulo}" com mais de 30 min em execução`, data: agora.toISOString() });
         }
       }
@@ -468,7 +481,7 @@ export class PlannerService {
       const prazo = new Date(atv.dataFim);
       const diff = (agora.getTime() - prazo.getTime()) / 1000;
       if (diff > 0 && !atv.alertaEnviado) {
-        this.persistence.update(atv.id, { alertaEnviado: true });
+        await this.persistence.update(atv.id, { alertaEnviado: true });
         alertas.push({ id: atv.id, tipo: 'atrasada', mensagem: `Atividade "${atv.titulo}" atrasada desde ${prazo.toLocaleDateString()}`, data: agora.toISOString() });
       }
     }

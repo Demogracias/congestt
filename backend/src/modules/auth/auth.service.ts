@@ -1,30 +1,39 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 import { generateToken } from '../../middleware/authMiddleware';
 import bcrypt from 'bcryptjs';
 
 export class AuthService {
   private users: Persistence<{ id: string; email: string; password: string; role: string; level: number }>;
-  private migrated = false;
+  private initPromise: Promise<void>;
 
   constructor() {
-    this.users = new Persistence<{ id: string; email: string; password: string; role: string; level: number }>('users.json', [
-      { id: '1', email: 'admin@congestt.com', password: bcrypt.hashSync('123', 10), role: 'Gerente', level: 6 },
-      { id: '2', email: 'user@congestt.com', password: bcrypt.hashSync('123', 10), role: 'Analista', level: 4 },
-    ]);
+    this.users = new Persistence<{ id: string; email: string; password: string; role: string; level: number }>('users.json', []);
+    this.initPromise = this.initialize();
+  }
+
+  private async initialize() {
+    const all = this.users.getAll();
+    if (all.length === 0) {
+      const adminHash = await bcrypt.hash('123', 10);
+      const userHash = await bcrypt.hash('123', 10);
+      await this.users.add({ id: '1', email: 'admin@congestt.com', password: adminHash, role: 'Gerente', level: 6 });
+      await this.users.add({ id: '2', email: 'user@congestt.com', password: userHash, role: 'Analista', level: 4 });
+      console.info('[Auth] Usuários padrão criados');
+    }
+    await this.migrarSenhas();
   }
 
   private async migrarSenhas() {
-    if (this.migrated) return;
-    this.migrated = true;
     const all = this.users.getAll();
     let altered = false;
     for (const u of all) {
       if (u.password && !u.password.startsWith('$2a$') && !u.password.startsWith('$2b$')) {
-        this.users.update(u.id, { password: bcrypt.hashSync(u.password, 10) });
+        const hashed = await bcrypt.hash(u.password, 10);
+        await this.users.update(u.id, { password: hashed });
         altered = true;
       }
     }
-    if (altered) console.log('[Auth] Senhas migradas para bcrypt');
+    if (altered) console.info('[Auth] Senhas migradas para bcrypt');
   }
 
   private registrationKeys: Record<string, { role: string; level: number }> = {
@@ -37,34 +46,38 @@ export class AuthService {
   };
 
   async listarUsuarios() {
+    await this.initPromise;
     return this.users.getAll().map(u => ({ id: u.id, email: u.email, role: u.role, level: u.level }));
   }
 
   async login(email: string, pass: string) {
-    await this.migrarSenhas();
+    await this.initPromise;
     const user = this.users.getAll().find(u => u.email === email);
     if (!user) throw new Error('Invalid credentials');
-    const match = bcrypt.compareSync(pass, user.password);
+    const match = await bcrypt.compare(pass, user.password);
     if (!match) throw new Error('Invalid credentials');
     const { password: _, ...safe } = user;
     return { ...safe, token: generateToken(safe) };
   }
 
   async register(email: string, pass: string, key: string) {
+    await this.initPromise;
     const keyData = this.registrationKeys[key];
     if (!keyData) throw new Error('Invalid or expired registration key');
 
-    const hashed = bcrypt.hashSync(pass, 10);
+    const hashed = await bcrypt.hash(pass, 10);
     const newUser = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       email,
       password: hashed,
       role: keyData.role,
       level: keyData.level,
     };
 
-    this.users.add(newUser);
+    await this.users.add(newUser);
     const { password: _, ...safe } = newUser;
     return { ...safe, token: generateToken(safe) };
   }
 }
+
+export const authService = new AuthService();

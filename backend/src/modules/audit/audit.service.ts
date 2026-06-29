@@ -1,4 +1,4 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 
 export interface AuditEntry {
   id: string;
@@ -20,11 +20,11 @@ export class AuditService {
 
   async registrar(entry: Omit<AuditEntry, 'id' | 'timestamp'>) {
     const nova: AuditEntry = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       timestamp: new Date().toISOString(),
       ...entry,
     };
-    this.persistence.add(nova);
+    await this.persistence.add(nova);
     return nova;
   }
 
@@ -32,8 +32,9 @@ export class AuditService {
     let result = this.persistence.getAll();
     if (filtro?.recurso) result = result.filter(l => l.recurso === filtro.recurso);
     if (filtro?.acao) result = result.filter(l => l.acao === filtro.acao);
+    result = result.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     if (filtro?.limite) result = result.slice(0, filtro.limite);
-    return result.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return result;
   }
 
   async listarPorUsuario(usuarioId: string) {

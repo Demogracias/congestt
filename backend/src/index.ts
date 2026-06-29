@@ -7,7 +7,11 @@ import os from 'os';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 
 import authRouter from './modules/auth/auth.controller';
@@ -59,12 +63,34 @@ function getLocalIP() {
   return '127.0.0.1';
 }
 
-const PORT = process.env.PORT || 3001;
-const HOST = '0.0.0.0';
-app.listen(Number(PORT), HOST, () => {
+const PORT = parseInt(process.env.PORT || '3001', 10);
+if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
+  console.error('[FATAL] PORT inválida:', process.env.PORT);
+  process.exit(1);
+}
+const HOST = process.env.HOST || '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
   const ip = getLocalIP();
   console.log(`ConGestt rodando em:`);
   console.log(`  Local:   http://localhost:${PORT}`);
   console.log(`  Rede:    http://${ip}:${PORT}`);
   console.log(`  Login:   admin@congestt.com / 123`);
+});
+server.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[FATAL] Porta ${PORT} já está em uso. Feche o processo ou mude a variável PORT.`);
+  } else {
+    console.error('[FATAL] Erro ao iniciar servidor:', err.message);
+  }
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Exceção não tratada:', err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Promise rejeitada não tratada:', reason);
+  process.exit(1);
 });

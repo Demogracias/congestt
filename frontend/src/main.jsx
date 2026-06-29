@@ -19,10 +19,12 @@ window.fetch = function(input, init) {
   return originalFetch.call(this, input, init).then(res => {
     if (res.status === 401) {
       localStorage.removeItem('user');
-      window.location.hash = '#/login';
       window.location.reload();
     }
     return res;
+  }).catch(err => {
+    console.error('[fetch]', err);
+    throw err;
   });
 };
 

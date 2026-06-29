@@ -10,7 +10,8 @@ router.get('/', async (req, res) => {
     const result = await service.listar();
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Equipes] GET /', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
@@ -20,7 +21,8 @@ router.get('/usuarios', async (req, res) => {
     const users = usersPersistence.getAll().map(u => ({ id: u.id, email: u.email, role: u.role, level: u.level }));
     res.json(users);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Equipes] GET /usuarios', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
@@ -30,7 +32,8 @@ router.get('/:id', async (req, res) => {
     if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada' });
     res.json(equipe);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Equipes] GET /:id', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 

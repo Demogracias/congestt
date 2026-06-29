@@ -1,6 +1,6 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 import { isValidCNPJ, formatCNPJ } from '../../utils/cnpj';
-import { consultarCNPJ, consultarFiliais } from '../../utils/receita-mock';
+import { consultarCNPJ, consultarFiliais } from '../../utils/receita-api';
 
 interface GrupoEconomico {
   id: string;
@@ -74,18 +74,19 @@ export class EmpresasService {
     if (todas.find(e => e.cnpj.replace(/\D/g, '') === cleanCNPJ)) throw new Error('CNPJ já cadastrado');
 
     if (dados.tipo === 'Matriz') {
-      const hasMatriz = todas.find(e => e.grupoEconomico === dados.grupoEconomico && e.tipo === 'Matriz');
-      if (hasMatriz) throw new Error('Grupo econômico já possui matriz cadastrada');
+      const ge = (dados.grupoEconomico || '').toLowerCase();
+      const hasMatriz = todas.find(e => (e.grupoEconomico || '').toLowerCase() === ge && e.tipo === 'Matriz');
+      if (hasMatriz && dados.grupoEconomico) throw new Error('Grupo econômico já possui matriz cadastrada');
     }
 
     if (dados.tipo === 'Filial') {
       if (!dados.matrizCnpj) throw new Error('Filial deve estar vinculada a uma matriz');
-      const matriz = await consultarCNPJ(dados.matrizCnpj);
-      if (!matriz) throw new Error('Matriz não encontrada na Receita Federal');
+      const matrizLocal = todas.find(e => e.cnpj.replace(/\D/g, '') === dados.matrizCnpj!.replace(/\D/g, '') && e.tipo === 'Matriz');
+      if (!matrizLocal) throw new Error('Matriz não encontrada no sistema. Cadastre a matriz primeiro.');
     }
 
     const nova: Empresa = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       cnpj: formatCNPJ(cleanCNPJ),
       razaoSocial: dados.razaoSocial,
       apelido: dados.apelido,
@@ -100,7 +101,7 @@ export class EmpresasService {
       createdAt: new Date().toISOString().split('T')[0],
     };
 
-    this.persistence.add(nova);
+    await this.persistence.add(nova);
     return nova;
   }
 
@@ -113,12 +114,12 @@ export class EmpresasService {
       const dup = this.persistence.getAll().find(e => e.id !== id && e.cnpj.replace(/\D/g, '') === clean);
       if (dup) throw new Error('CNPJ já cadastrado');
     }
-    this.persistence.update(id, dados);
+    await this.persistence.update(id, dados);
     return this.persistence.getById(id);
   }
 
   async remover(id: string) {
-    const ok = this.persistence.delete(id);
+    const ok = await this.persistence.delete(id);
     if (!ok) throw new Error('Empresa não encontrada');
   }
 
@@ -133,11 +134,11 @@ export class EmpresasService {
     const existente = this.gruposPersistence.getAll().find(g => g.nome === nome.trim());
     if (existente) throw new Error('Grupo já existe');
     const novo: GrupoEconomico = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       nome: nome.trim(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    this.gruposPersistence.add(novo);
+    await this.gruposPersistence.add(novo);
     return novo;
   }
 
@@ -149,7 +150,7 @@ export class EmpresasService {
       const clean = f.cnpj.replace(/\D/g, '');
       if (!todas.find(e => e.cnpj.replace(/\D/g, '') === clean)) {
         const nova: Empresa = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: generateId(),
           cnpj: f.cnpj,
           razaoSocial: f.razaoSocial,
           apelido: f.nomeFantasia || f.razaoSocial.split(' ')[0],
@@ -163,7 +164,7 @@ export class EmpresasService {
           diaFechamento: 15,
           createdAt: new Date().toISOString().split('T')[0],
         };
-        this.persistence.add(nova);
+        await this.persistence.add(nova);
         vinculadas.push(nova);
       }
     }

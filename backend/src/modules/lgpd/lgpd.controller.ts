@@ -1,5 +1,6 @@
 import express from 'express';
 import { LgpdService } from './lgpd.service';
+import { AuthRequest } from '../../middleware/authMiddleware';
 
 const router = express.Router();
 const service = new LgpdService();
@@ -10,13 +11,16 @@ router.get('/consentimentos', async (req, res) => {
     const result = await service.listarConsentimentos(usuarioId);
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[LGPD] GET /consentimentos', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
 router.post('/consentimentos', async (req, res) => {
   try {
     const { usuarioId, tipo, aceito, ip } = req.body;
+    if (!usuarioId || !tipo || aceito === undefined) return res.status(400).json({ message: 'usuarioId, tipo e aceito são obrigatórios' });
+    if (!['termos_uso', 'dados_pessoais', 'comunicacao'].includes(tipo)) return res.status(400).json({ message: 'tipo inválido' });
     const result = await service.registrarConsentimento(usuarioId, tipo, aceito, ip);
     res.status(201).json(result);
   } catch (error: any) {
@@ -24,10 +28,11 @@ router.post('/consentimentos', async (req, res) => {
   }
 });
 
-router.post('/anonimizacao', async (req, res) => {
+router.post('/anonimizacao', async (req: AuthRequest, res) => {
   try {
     const { usuarioId } = req.body;
-    const result = await service.solicitarAnonimizacao(usuarioId);
+    if (!usuarioId) return res.status(400).json({ message: 'usuarioId é obrigatório' });
+    const result = await service.solicitarAnonimizacao(usuarioId, req.usuario?.id || '', req.usuario?.level || 0);
     res.status(201).json(result);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -48,7 +53,8 @@ router.get('/anonimizacao', async (req, res) => {
     const result = await service.listarSolicitacoesAnonimizacao();
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[LGPD] GET /anonimizacao', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 

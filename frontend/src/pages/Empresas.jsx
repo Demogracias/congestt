@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useToast } from "../components/Toast";
 
 const C = {
   deep: "#1E1245", purple: "#2D1B69", mid: "#4A2C8F", lilac: "#7C5CBF",
@@ -24,9 +25,10 @@ const TrashIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="n
 const atividades = ["Indústria", "Serviço", "Comércio"];
 const fechamentos = ["Mensal", "Bimestral", "Trimestral", "Semestral", "Anual", "Sem Movimento"];
 const portes = ["Grande", "Médio", "Pequeno", "Micro"];
-const equipesList = ["Alpha", "Beta", "Gamma", "Delta"];
+// const equipesList removed — unused
 
 export default function Empresas() {
+  const toast = useToast();
   const [empresas, setEmpresas] = useState([]);
   const [equipes, setEquipes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,41 +42,54 @@ export default function Empresas() {
   const [showGrupoModal, setShowGrupoModal] = useState(false);
   const [novoGrupo, setNovoGrupo] = useState("");
   const [consultando, setConsultando] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const cnpjTimer = useRef(null);
 
-  const [form, setForm] = useState({
-    cnpj: "", razaoSocial: "", apelido: "", porte: "Médio",
-    atividade: "Indústria", grupoEconomico: "", equipe: "Alpha",
-    tipo: "Matriz", matrizCnpj: "",
-    tipoFechamento: "Mensal", diaFechamento: 15,
-  });
+  const INITIAL_FORM = { cnpj: "", razaoSocial: "", apelido: "", porte: "Médio", atividade: "Indústria", grupoEconomico: "", equipe: "Alpha", tipo: "Matriz", matrizCnpj: "", tipoFechamento: "Mensal", diaFechamento: 15 };
+  const [form, setForm] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
-    fetch("/api/empresas").then(r => r.json()).then(data => { setEmpresas(data); setLoading(false); }).catch(() => setLoading(false));
-    fetch("/api/empresas/grupos").then(r => r.json()).then(data => setGrupos(data)).catch(() => {});
-    fetch("/api/equipes").then(r => r.json()).then(data => { if (Array.isArray(data)) setEquipes(data); }).catch(() => {});
+    setFetchError(false);
+    fetch("/api/empresas").then(r => r.json()).then(data => { setEmpresas(data); setLoading(false); }).catch(() => { setLoading(false); setFetchError(true); });
+    fetch("/api/empresas/grupos").then(r => r.json()).then(data => setGrupos(data)).catch(() => toast("Erro ao carregar grupos", "error"));
+    fetch("/api/equipes").then(r => r.json()).then(data => { if (Array.isArray(data)) setEquipes(data); }).catch(() => toast("Erro ao carregar equipes", "error"));
   };
 
   useEffect(() => { fetchData(); }, []);
 
+  useEffect(() => {
+    return () => {
+      if (cnpjTimer.current) clearTimeout(cnpjTimer.current);
+    };
+  }, []);
+
   const consultarCNPJ = async (cnpj) => {
-    if (cnpj.replace(/\D/g, '').length !== 14) return;
+    const clean = cnpj.replace(/\D/g, '');
+    if (clean.length !== 14) return;
     setConsultando(true);
     try {
       const res = await fetch(`/api/empresas/consultar-cnpj/${cnpj}`);
       if (res.ok) {
         const data = await res.json();
-        setForm(f => ({ ...f, razaoSocial: data.empresa.razaoSocial, porte: data.empresa.porte, atividade: data.empresa.atividade }));
+        setForm(f => ({
+          ...f,
+          razaoSocial: data.empresa.razaoSocial,
+          apelido: data.empresa.nomeFantasia || f.apelido,
+          porte: data.empresa.porte,
+          atividade: data.empresa.atividade,
+        }));
         if (data.filiais && data.filiais.length > 0) {
-          if (confirm(`${data.filiais.length} filial(is) encontrada(s) na Receita Federal. Vincular automaticamente?`)) {
-            try { await fetch(`/api/empresas/vincular-filiais/${cnpj}`); } catch {}
-            fetchData();
-          }
+          await fetch(`/api/empresas/vincular-filiais/${cnpj}`);
+          fetchData();
+          toast(`${data.filiais.length} filial(is) vinculada(s) automaticamente.`, "success");
+        }
+        if (data.empresa.razaoSocial) {
+          toast("Dados da Receita Federal carregados.", "success");
         }
       }
-    } catch (err) { console.error("Erro ao consultar CNPJ:", err); }
+    } catch (err) { console.error("Erro ao consultar CNPJ:", err); toast("Erro ao consultar CNPJ", "error"); }
     setConsultando(false);
   };
 
@@ -95,17 +110,19 @@ export default function Empresas() {
     setSubmitting(true);
     const url = editId ? `/api/empresas/${editId}` : "/api/empresas";
     const method = editId ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    try {
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (res.ok) {
+        fetchData();
+        setShowModal(false);
+        setEditId(null);
+        setForm(INITIAL_FORM);
+      } else {
+        const err = await res.json();
+        toast(err.message, "error");
+      }
+    } catch (e) { toast("Erro de rede", "error"); }
     setSubmitting(false);
-    if (res.ok) {
-      fetchData();
-      setShowModal(false);
-      setEditId(null);
-      setForm({ cnpj: "", razaoSocial: "", apelido: "", porte: "Médio", atividade: "Indústria", grupoEconomico: "", equipe: "Alpha", tipo: "Matriz", matrizCnpj: "", tipoFechamento: "Mensal", diaFechamento: 15 });
-    } else {
-      const err = await res.json();
-      alert(err.message);
-    }
   };
 
   const handleEdit = (emp) => {
@@ -116,12 +133,15 @@ export default function Empresas() {
 
   const handleDelete = async (id) => {
     if (!confirm("Excluir esta empresa?")) return;
-    const res = await fetch(`/api/empresas/${id}`, { method: "DELETE" });
-    if (res.ok) fetchData();
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch(`/api/empresas/${id}`, { method: "DELETE" });
+      if (res.ok) fetchData();
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede ao excluir", "error"); }
   };
 
   if (loading) return <div style={{ color: C.muted, padding: 40, textAlign: "center" }}>Carregando...</div>;
+  if (fetchError) return <div style={{ color: C.danger, padding: 40, textAlign: "center" }}>Erro ao carregar empresas. <button onClick={fetchData} style={{ background: C.lilac, color: C.white, border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontWeight: 600, marginLeft: 8 }}>Tentar novamente</button></div>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -145,8 +165,8 @@ export default function Empresas() {
           </select>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn onClick={() => { setEditId(null); setForm({ cnpj: "", razaoSocial: "", apelido: "", porte: "Médio", atividade: "Indústria", grupoEconomico: "", equipe: "Alpha", tipo: "Matriz", matrizCnpj: "", tipoFechamento: "Mensal", diaFechamento: 15 }); setShowModal(true); }}><PlusIcon /> Nova Empresa</Btn>
-          <Btn variant="outline" onClick={() => { setNovoGrupo(""); setShowGrupoModal(true); }}><PlusIcon /> Grupo</Btn>
+          <Btn onClick={() => { setEditId(null); setForm(INITIAL_FORM); setShowModal(true); }}><PlusIcon /> Nova Empresa</Btn>
+              <Btn variant="outline" onClick={() => { setNovoGrupo(""); setShowGrupoModal(true); }}><PlusIcon /> Grupo</Btn>
         </div>
       </div>
 
@@ -212,7 +232,7 @@ export default function Empresas() {
               <button type="button" onClick={async () => {
                 if (!novoGrupo.trim()) return;
                 const res = await fetch("/api/empresas/grupos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: novoGrupo.trim() }) });
-                if (res.ok) { setShowGrupoModal(false); setNovoGrupo(""); fetchData(); } else { const err = await res.json(); alert(err.message); }
+                if (res.ok) { setShowGrupoModal(false); setNovoGrupo(""); fetchData(); } else { const err = await res.json(); toast(err.message, "error"); }
               }} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: C.lilac, color: C.white, cursor: "pointer", fontWeight: 600 }}>Salvar</button>
             </div>
           </div>
@@ -228,6 +248,7 @@ export default function Empresas() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "block", marginBottom: 4 }}>CNPJ *</label>
+                  <div style={{ position: "relative" }}>
                   <input required value={form.cnpj} onChange={e => {
                     const v = e.target.value;
                     setForm({ ...form, cnpj: v });
@@ -236,6 +257,8 @@ export default function Empresas() {
                       cnpjTimer.current = setTimeout(() => consultarCNPJ(v), 400);
                     }
                   }} placeholder="00.000.000/0000-00" style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box", fontSize: 13 }} />
+                  {consultando && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: C.lilac, fontWeight: 600 }}>Consultando...</span>}
+                  </div>
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "block", marginBottom: 4 }}>Razão Social *</label>
@@ -299,7 +322,7 @@ export default function Empresas() {
                 </div>
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "block", marginBottom: 4 }}>Dia do Fechamento</label>
-                  <input type="number" min="1" max="31" value={form.diaFechamento} onChange={e => setForm({ ...form, diaFechamento: parseInt(e.target.value) || 15 })} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box", fontSize: 13 }} />
+                  <input type="number" min="1" max="31" value={form.diaFechamento} onChange={e => { const v = parseInt(e.target.value); if (v >= 1 && v <= 31) setForm({ ...form, diaFechamento: v }); else if (e.target.value === '') setForm({ ...form, diaFechamento: 0 }); }} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box", fontSize: 13 }} />
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>

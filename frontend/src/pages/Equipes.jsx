@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useToast } from "../components/Toast";
 
 const C = {
   deep: "#1E1245", purple: "#2D1B69", mid: "#4A2C8F", lilac: "#7C5CBF",
@@ -23,6 +24,7 @@ const TrashIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="n
 const UserPlusIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>);
 
 export default function Equipes() {
+  const toast = useToast();
   const [equipes, setEquipes] = useState([]);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,8 @@ export default function Equipes() {
     Promise.all([
       fetch("/api/equipes").then(r => r.json()),
       fetch("/api/equipes/usuarios").then(r => r.json()),
-    ]).then(([eqs, users]) => { setEquipes(eqs); setUsuarios(users); setLoading(false); });
+    ]).then(([eqs, users]) => { setEquipes(eqs); setUsuarios(users); setLoading(false); })
+    .catch(() => { setLoading(false); toast("Erro ao carregar dados", "error"); });
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -47,9 +50,11 @@ export default function Equipes() {
     e.preventDefault();
     const url = editId ? `/api/equipes/${editId}` : "/api/equipes";
     const method = editId ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
-    if (res.ok) { fetchData(); setShowModal(false); setEditId(null); setForm({ nome: "", supervisao: "", supervisorId: "" }); }
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (res.ok) { fetchData(); setShowModal(false); setEditId(null); setForm({ nome: "", supervisao: "", supervisorId: "" }); }
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const handleEdit = (eq) => {
@@ -60,22 +65,29 @@ export default function Equipes() {
 
   const handleDelete = async (id) => {
     if (!confirm("Excluir esta equipe?")) return;
-    const res = await fetch(`/api/equipes/${id}`, { method: "DELETE" });
-    if (res.ok) fetchData();
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch(`/api/equipes/${id}`, { method: "DELETE" });
+      if (res.ok) fetchData();
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const handleAddMembro = async (e) => {
     e.preventDefault();
-    const res = await fetch(`/api/equipes/${membroEquipeId}/membros`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(membroForm) });
-    if (res.ok) { fetchData(); setShowMembroModal(false); setMembroForm({ nome: "", cargo: "", nivel: 1 }); }
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch(`/api/equipes/${membroEquipeId}/membros`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(membroForm) });
+      if (res.ok) { fetchData(); setShowMembroModal(false); setMembroForm({ id: "", nome: "", cargo: "", nivel: 1 }); }
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const handleRemoveMembro = async (eqId, membroId) => {
     if (!confirm("Remover este membro?")) return;
-    const res = await fetch(`/api/equipes/${eqId}/membros/${membroId}`, { method: "DELETE" });
-    if (res.ok) fetchData();
+    try {
+      const res = await fetch(`/api/equipes/${eqId}/membros/${membroId}`, { method: "DELETE" });
+      if (res.ok) fetchData();
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const openMembroModal = (eqId) => {
@@ -168,7 +180,7 @@ export default function Equipes() {
             <form onSubmit={handleAddMembro} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "block", marginBottom: 4 }}>Usuário</label>
-                <select required value={membroForm.nome} onChange={e => {
+                <select required value={membroForm.id} onChange={e => {
                   const user = usuarios.find(u => u.id === e.target.value);
                   if (user) setMembroForm({ id: user.id, nome: user.email.split('@')[0], cargo: user.role, nivel: user.level });
                 }} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${C.ghost}`, fontSize: 13 }}>

@@ -9,7 +9,8 @@ router.get('/', async (req, res) => {
     const logs = await auditService.listar({ recurso, acao, limite: limite ? parseInt(limite) : undefined });
     res.json(logs);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Audit] GET /', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
@@ -18,7 +19,8 @@ router.get('/usuario/:usuarioId', async (req, res) => {
     const logs = await auditService.listarPorUsuario(req.params.usuarioId);
     res.json(logs);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Audit] GET /usuario/:usuarioId', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 

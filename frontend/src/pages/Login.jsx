@@ -7,15 +7,6 @@ const C = {
   success: "#4CAF82", warn: "#F59E0B", danger: "#EF4444", text: "#1A0F3C", muted: "#6B5B8C",
 };
 
-const niveis = [
-  { key: "KEY-GERENTE-001", role: "Gerente", level: 6, desc: "Acesso total ao sistema" },
-  { key: "KEY-SUPER-001", role: "Supervisor", level: 5, desc: "Gerencia equipes e aprova fechamentos" },
-  { key: "KEY-ANALISTA-001", role: "Analista", level: 4, desc: "Opera empresas, planner e relatorios" },
-  { key: "KEY-ASSIST-001", role: "Assistente", level: 3, desc: "Suporte a analistas" },
-  { key: "KEY-AUXILIAR-001", role: "Auxiliar", level: 2, desc: "Operacoes basicas" },
-  { key: "KEY-ESTAGIARIO-001", role: "Estagiario", level: 1, desc: "Acesso limitado a consultas" },
-];
-
 export default function Login() {
   const [aba, setAba] = useState("login");
   const [email, setEmail] = useState("");
@@ -25,9 +16,12 @@ export default function Login() {
   const [regKey, setRegKey] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     setError("");
     try {
       const res = await fetch("/api/auth/login", {
@@ -35,21 +29,29 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) throw new Error("Credenciais invalidas");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Credenciais invalidas");
+      }
       const data = await res.json();
       const { password: _, ...safe } = data;
       localStorage.setItem("user", JSON.stringify(safe));
       window.location.reload();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     setError("");
     setSuccess("");
     try {
+      if (regPass.length < 4) throw new Error("Senha deve ter no mínimo 4 caracteres");
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,6 +66,8 @@ export default function Login() {
       setRegEmail(""); setRegPass(""); setRegKey("");
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -101,10 +105,10 @@ export default function Login() {
                 style={{ width: "100%", padding: "12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box" }} />
             </div>
             {error && <div style={{ color: C.danger, fontSize: 13, fontWeight: 500 }}>{error}</div>}
-            <button style={{
-              background: C.lilac, color: C.white, border: "none", padding: "14px",
-              borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 15
-            }}>Entrar</button>
+            <button disabled={submitting} style={{
+              background: submitting ? C.muted : C.lilac, color: C.white, border: "none", padding: "14px",
+              borderRadius: 8, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, opacity: submitting ? 0.7 : 1
+            }}>{submitting ? "Entrando..." : "Entrar"}</button>
           </form>
         )}
 
@@ -122,25 +126,15 @@ export default function Login() {
             </div>
             <div style={{ textAlign: "left" }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 4, display: "block" }}>Chave de Registro</label>
-              <select value={regKey} onChange={e => setRegKey(e.target.value)} required
-                style={{ width: "100%", padding: "12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box", background: C.white }}>
-                <option value="">Selecione o nivel hierarquico</option>
-                {niveis.map(n => (
-                  <option key={n.key} value={n.key}>{n.role} (Nivel {n.level}) - {n.desc}</option>
-                ))}
-              </select>
-              <div style={{ marginTop: 8, fontSize: 11, color: C.muted, background: C.snow, borderRadius: 8, padding: "8px 10px", lineHeight: 1.5 }}>
-                {niveis.map(n => (
-                  <div key={n.key} style={{ marginBottom: 2 }}><strong>{n.key}</strong> = {n.role} (Nv.{n.level})</div>
-                ))}
-              </div>
+              <input type="text" value={regKey} onChange={e => setRegKey(e.target.value)} required placeholder="Informe sua chave de registro"
+                style={{ width: "100%", padding: "12px", borderRadius: 8, border: `1px solid ${C.ghost}`, boxSizing: "border-box" }} />
             </div>
             {error && <div style={{ color: C.danger, fontSize: 13, fontWeight: 500 }}>{error}</div>}
             {success && <div style={{ color: C.success, fontSize: 13, fontWeight: 500, background: C.success + "11", padding: "8px 12px", borderRadius: 8 }}>{success}</div>}
-            <button style={{
-              background: C.success, color: C.white, border: "none", padding: "14px",
-              borderRadius: 8, fontWeight: 600, cursor: "pointer", fontSize: 15
-            }}>Criar Conta</button>
+            <button disabled={submitting} style={{
+              background: submitting ? C.muted : C.success, color: C.white, border: "none", padding: "14px",
+              borderRadius: 8, fontWeight: 600, cursor: submitting ? "not-allowed" : "pointer", fontSize: 15, opacity: submitting ? 0.7 : 1
+            }}>{submitting ? "Criando..." : "Criar Conta"}</button>
           </form>
         )}
 

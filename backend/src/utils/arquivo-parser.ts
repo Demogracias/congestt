@@ -23,7 +23,8 @@ export function parseExcelConteudo(conteudo: string): ArquivoProcessado {
       headers.forEach((h, idx) => { linha[h] = cols[idx]; });
       result.linhas.push(linha);
     }
-  } catch {
+  } catch (e) {
+    console.error('[ArquivoParser] Erro ao processar arquivo:', e);
     result.errors.push('Erro ao processar arquivo');
   }
   return result;
@@ -52,7 +53,8 @@ export function parseXMLConteudo(conteudo: string): ArquivoProcessado {
         }
       }
     }
-  } catch {
+  } catch (e) {
+    console.error('[ArquivoParser] Erro ao processar XML:', e);
     result.errors.push('Erro ao processar XML');
   }
   return result;

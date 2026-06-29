@@ -1,4 +1,4 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 
 export interface ContaContabil {
   id: string;
@@ -63,7 +63,7 @@ export class ContasService {
     }
 
     const nova: ContaContabil = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       empresaId: dados.empresaId || '',
       codigo: dados.codigo,
       nome: dados.nome,
@@ -75,29 +75,33 @@ export class ContasService {
       createdAt: new Date().toISOString().split('T')[0],
     };
 
-    this.persistence.add(nova);
+    await this.persistence.add(nova);
     return nova;
   }
 
   async importarPlanilha(empresaId: string, contas: Array<{ codigo: string; nome: string; tipo: string; natureza: string; contaPaiId?: string }>) {
     const importadas: ContaContabil[] = [];
     const todas = this.persistence.getAll();
+    const tiposValidos = ['Ativo', 'Passivo', 'DRE'];
+    const naturezasValidas = ['Sintética', 'Analítica'];
     for (const c of contas) {
+      if (!tiposValidos.includes(c.tipo)) throw new Error(`Tipo inválido "${c.tipo}" para conta ${c.codigo}. Use Ativo, Passivo ou DRE.`);
+      if (!naturezasValidas.includes(c.natureza)) throw new Error(`Natureza inválida "${c.natureza}" para conta ${c.codigo}. Use Sintética ou Analítica.`);
       let paiId = c.contaPaiId;
       if (paiId && !todas.find(t => t.id === paiId)) paiId = undefined;
       const nova: ContaContabil = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: generateId(),
         empresaId,
         codigo: c.codigo,
         nome: c.nome,
-        tipo: c.tipo as any,
-        natureza: c.natureza as any,
+        tipo: c.tipo as 'Ativo' | 'Passivo' | 'DRE',
+        natureza: c.natureza as 'Sintética' | 'Analítica',
         categoria: c.tipo,
         ativa: true,
         contaPaiId: paiId,
         createdAt: new Date().toISOString().split('T')[0],
       };
-      this.persistence.add(nova);
+      await this.persistence.add(nova);
       importadas.push(nova);
     }
     return importadas;
@@ -108,7 +112,7 @@ export class ContasService {
     if (!conta) throw new Error('Conta não encontrada');
     const filhos = this.persistence.getAll().filter(c => c.contaPaiId === id);
     if (filhos.length > 0) throw new Error('Desative contas filhas primeiro');
-    this.persistence.update(id, { ativa: false });
+    await this.persistence.update(id, { ativa: false });
     return this.persistence.getById(id);
   }
 }

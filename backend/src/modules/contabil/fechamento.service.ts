@@ -1,4 +1,4 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 
 export interface FechamentoContabil {
   id: string;
@@ -45,25 +45,25 @@ export class FechamentoService {
     return this.historicoPersistence.getAll().filter(h => h.fechamentoId === fechamentoId);
   }
 
-  async iniciar(empresaId: string, periodo: string) {
+  async iniciar(empresaId: string, periodo: string, usuarioId: string = '1') {
     const existente = this.fechamentos.getAll().find(f => f.empresaId === empresaId && f.periodo === periodo);
     if (existente) throw new Error('Já existe fechamento para esta empresa/período');
 
     const novo: FechamentoContabil = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       empresaId, periodo,
       status: 'em_andamento',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    this.fechamentos.add(novo);
+    await this.fechamentos.add(novo);
 
-    this.historicoPersistence.add({
-      id: Math.random().toString(36).substr(2, 9),
+    await this.historicoPersistence.add({
+      id: generateId(),
       fechamentoId: novo.id,
       acao: 'iniciado',
-      usuarioId: '1',
+      usuarioId,
       descricao: 'Fechamento iniciado',
       createdAt: new Date().toISOString(),
     });
@@ -80,14 +80,14 @@ export class FechamentoService {
     if (!fech) throw new Error('Fechamento não encontrado');
     if (fech.status === 'concluido') throw new Error('Fechamento já concluído');
 
-    this.fechamentos.update(id, {
+    await this.fechamentos.update(id, {
       status: 'concluido',
       aprovadoPor: usuarioId,
       updatedAt: new Date().toISOString(),
     });
 
-    this.historicoPersistence.add({
-      id: Math.random().toString(36).substr(2, 9),
+    await this.historicoPersistence.add({
+      id: generateId(),
       fechamentoId: id,
       acao: 'concluido',
       usuarioId,
@@ -98,20 +98,20 @@ export class FechamentoService {
     return this.fechamentos.getById(id);
   }
 
-  async adicionarJustificativa(id: string, justificativa: string) {
+  async adicionarJustificativa(id: string, justificativa: string, usuarioId: string = '1') {
     const fech = this.fechamentos.getById(id);
     if (!fech) throw new Error('Fechamento não encontrado');
 
-    this.fechamentos.update(id, {
+    await this.fechamentos.update(id, {
       justificativa,
       updatedAt: new Date().toISOString(),
     });
 
-    this.historicoPersistence.add({
-      id: Math.random().toString(36).substr(2, 9),
+    await this.historicoPersistence.add({
+      id: generateId(),
       fechamentoId: id,
       acao: 'justificativa',
-      usuarioId: '1',
+      usuarioId,
       descricao: `Justificativa: ${justificativa}`,
       createdAt: new Date().toISOString(),
     });

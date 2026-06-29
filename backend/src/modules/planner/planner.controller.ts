@@ -1,6 +1,7 @@
 import express from 'express';
 import { PlannerService } from './planner.service';
 import { auditService } from '../audit/audit.service';
+import { AuthRequest } from '../../middleware/authMiddleware';
 
 const router = express.Router();
 const service = new PlannerService();
@@ -11,7 +12,8 @@ router.get('/', async (req, res) => {
     const result = await service.listar({ empresaId, equipe, mes, status, responsavel });
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Planner] GET /', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
@@ -20,7 +22,8 @@ router.get('/alertas', async (req, res) => {
     const alertas = await service.verificarAlertas();
     res.json(alertas);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Planner] GET /alertas', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
@@ -30,21 +33,22 @@ router.get('/:id', async (req, res) => {
     if (!atv) return res.status(404).json({ message: 'Atividade não encontrada' });
     res.json(atv);
   } catch (error: any) {
-    res.status(500).json({ message: error.message });
+    console.error('[Planner] GET /:id', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
   }
 });
 
-router.post('/', async (req: any, res) => {
+router.post('/', async (req: AuthRequest, res) => {
   try {
     const atv = await service.criar(req.body);
-    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'planner', recursoId: atv.id, detalhes: `Nova tarefa: ${atv.titulo}` }).catch(() => {});
+    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'planner', recursoId: atv.id, detalhes: `Nova tarefa: ${atv.titulo}` }).catch(e => console.error('[Audit]', e));
     res.status(201).json(atv);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
 });
 
-router.put('/:id', async (req: any, res) => {
+router.put('/:id', async (req: AuthRequest, res) => {
   try {
     const atv = await service.atualizar(req.params.id, req.body);
     res.json(atv);
@@ -53,22 +57,22 @@ router.put('/:id', async (req: any, res) => {
   }
 });
 
-router.post('/:id/start', async (req: any, res) => {
+router.post('/:id/start', async (req: AuthRequest, res) => {
   try {
     const { usuarioId } = req.body;
     const atv = await service.iniciarTimer(req.params.id, usuarioId);
-    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'iniciar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: `Timer iniciado: ${atv?.titulo}` }).catch(() => {});
+    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'iniciar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: `Timer iniciado: ${atv?.titulo}` }).catch(e => console.error('[Audit]', e));
     res.json(atv);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
   }
 });
 
-router.post('/:id/pause', async (req: any, res) => {
+router.post('/:id/pause', async (req: AuthRequest, res) => {
   try {
     const { justificativa, tipo, tarefaVinculadaId } = req.body;
     const atv = await service.pausarTimer(req.params.id, justificativa, tipo || 'pausa', tarefaVinculadaId);
-    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'pausar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: justificativa || 'Pausa' }).catch(() => {});
+    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'pausar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: justificativa || 'Pausa' }).catch(e => console.error('[Audit]', e));
     res.json(atv);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -85,10 +89,10 @@ router.post('/:id/resume', async (req, res) => {
   }
 });
 
-router.post('/:id/complete', async (req: any, res) => {
+router.post('/:id/complete', async (req: AuthRequest, res) => {
   try {
     const atv = await service.concluir(req.params.id);
-    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'concluir', recurso: 'planner', recursoId: req.params.id, detalhes: `Concluída: ${atv?.titulo}` }).catch(() => {});
+    auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'concluir', recurso: 'planner', recursoId: req.params.id, detalhes: `Concluída: ${atv?.titulo}` }).catch(e => console.error('[Audit]', e));
     res.json(atv);
   } catch (error: any) {
     res.status(400).json({ message: error.message });

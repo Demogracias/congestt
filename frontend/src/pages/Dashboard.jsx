@@ -149,7 +149,7 @@ export default function Dashboard() {
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>{p.value}%</span>
               </div>
               <div style={{ background: C.ghost, borderRadius: 99, height: 7 }}>
-                <div style={{ width: `${p.value}%`, background: p.label === "Grande" ? C.purple : p.label === "Médio" ? C.lilac : p.label === "Pequeno" ? C.soft : C.ghost.replace("F", "D"), height: "100%", borderRadius: 99 }} />
+                <div style={{ width: `${p.value}%`, background: p.label === "Grande" ? C.purple : p.label === "Médio" ? C.lilac : p.label === "Pequeno" ? C.soft : C.soft, height: "100%", borderRadius: 99 }} />
               </div>
             </div>
           ))}

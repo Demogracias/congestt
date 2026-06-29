@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import TaskForm from "../components/TaskForm";
+import PromptModal from "../components/PromptModal";
+import { useToast } from "../components/Toast";
 const C = {
   deep: "#1E1245", purple: "#2D1B69", mid: "#4A2C8F", lilac: "#7C5CBF",
   soft: "#B39DDB", ghost: "#EDE7F6", snow: "#F8F6FF", white: "#FFFFFF",
@@ -74,17 +76,14 @@ function CalendarView({ atividades, empresas, elapsed, user, handleAction, handl
   const nextMonth = () => { if (mes === 11) { setAno(ano + 1); setMes(0); } else setMes(mes + 1); setDiaSelecionado(null); };
 
   const getTasksForDay = (year, month, day) => {
-    const targetDate = new Date(year, month, day).getTime();
-    const oneDayMs = 24 * 60 * 60 * 1000;
+    const targetStart = new Date(year, month, day);
+    const targetEnd = new Date(year, month, day + 1);
 
     return (atividades || []).filter(a => {
       if (!a || !a.dataInicio) return false;
-      const inicio = new Date(a.dataInicio).getTime();
-      const fim = a.dataFim ? new Date(a.dataFim).getTime() : inicio;
-      
-      // Normalize targetDate to start of day for comparison
-      const normalizedTarget = new Date(year, month, day).getTime();
-      return normalizedTarget >= inicio && normalizedTarget <= (fim + oneDayMs);
+      const inicio = new Date(a.dataInicio + 'T00:00:00-03:00');
+      const fim = a.dataFim ? new Date(a.dataFim + 'T23:59:59-03:00') : inicio;
+      return targetStart <= fim && targetEnd > inicio;
     });
   };
 
@@ -186,6 +185,8 @@ function CalendarView({ atividades, empresas, elapsed, user, handleAction, handl
 }
 
 const TaskDetailModal = ({ ativ, onClose, empresas, contas, onEdit, atividades }) => {
+  const taskToast = useToast();
+  const [taskConfirm, setTaskConfirm] = useState({ open: false, message: '', onConfirm: () => {} });
   if (!ativ) return null;
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#0006", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={onClose}>
@@ -240,17 +241,17 @@ const TaskDetailModal = ({ ativ, onClose, empresas, contas, onEdit, atividades }
                    <Badge key={bid} label={b.titulo} color={C.danger} 
                      style={{ display: "flex", alignItems: "center", gap: 4 }}
                    >
-                      <span onClick={() => { 
-                        if (confirm(`Remover bloqueio de ${b.titulo}?`)) {
-                          fetch(`/api/planner/${ativ.id}/removerBloqueio`, { 
-                            method: "POST", 
-                            headers: { "Content-Type": "application/json" }, 
-                            body: JSON.stringify({ bloqueadorId: bid }) 
-                          }).then(() => {
-                            window.dispatchEvent(new Event('planner-updated')); 
-                          });
-                        }
-                      }}
+                        <span onClick={() => setTaskConfirm({ open: true, message: `Remover bloqueio de ${b.titulo}?`, onConfirm: async () => {
+                            try {
+                              const r = await fetch(`/api/planner/${ativ.id}/removerBloqueio`, { 
+                                method: "POST", 
+                                headers: { "Content-Type": "application/json" }, 
+                                body: JSON.stringify({ bloqueadorId: bid }) 
+                              });
+                              if (r.ok) window.dispatchEvent(new Event('planner-updated'));
+                              else { const e = await r.json(); taskToast(e.message, 'error'); }
+                            } catch (e) { taskToast("Erro ao remover bloqueio", "error"); }
+                        }})}
                      style={{ cursor: "pointer", fontSize: 10 }}
                    >&times;</span >
                    </Badge>
@@ -296,11 +297,24 @@ const TaskDetailModal = ({ ativ, onClose, empresas, contas, onEdit, atividades }
           </div>
         </div>
       </div>
+      {taskConfirm.open && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#0006", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200 }}
+          onClick={() => setTaskConfirm({ ...taskConfirm, open: false })}>
+          <div style={{ background: C.white, borderRadius: 16, padding: 32, width: 360 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20 }}>{taskConfirm.message}</div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setTaskConfirm({ ...taskConfirm, open: false })} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${C.ghost}`, background: C.white, color: C.muted, cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button onClick={() => { const cb = taskConfirm.onConfirm; setTaskConfirm({ ...taskConfirm, open: false }); cb(); }} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: C.lilac, color: C.white, cursor: "pointer", fontWeight: 600 }}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function Planner() {
+  const toast = useToast();
   const [atividades, setAtividades] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [contas, setContas] = useState([]);
@@ -309,11 +323,11 @@ export default function Planner() {
   const [loading, setLoading] = useState(true);
   const [visao, setVisao] = useState("lista");
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit' | 'view'
+  const [modalMode, setModalMode] = useState('create');
   const [editando, setEditando] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(null);
   const [showNota, setShowNota] = useState(null);
-  const [user] = useState(JSON.parse(localStorage.getItem('user')));
+  const [user] = useState(() => { try { return JSON.parse(localStorage.getItem('user')); } catch { return null; } });
   const [elapsed, setElapsed] = useState({});
   const [filtroEquipe, setFiltroEquipe] = useState("");
   const [filtroEmpresa, setFiltroEmpresa] = useState(null);
@@ -325,6 +339,10 @@ export default function Planner() {
     meses: [], contaContabilIds: [], dataInicio: '', dataFim: '',
     recorrenciaTipo: '', recorrenciaIntervalo: 1, paiId: '',
   });
+  const [promptState, setPromptState] = useState({ open: false, title: '', label: '', onConfirm: () => {} });
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: () => {} });
+  const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
+  const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: () => {} });
 
   useEffect(() => {
     Promise.all([
@@ -403,11 +421,13 @@ export default function Planner() {
       payload.contaContabilNomes = nomes;
     }
 
-    const res = await fetch("/api/planner", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (!res.ok) { const err = await res.json(); alert(err.message); return; }
+    let res;
+    try {
+      res = await fetch("/api/planner", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    } catch (e) { toast("Erro de rede", "error"); return; }
+    if (!res.ok) { const err = await res.json(); toast(err.message, "error"); return; }
     const created = await res.json();
 
-    // Create subatividades linked to this task
     for (const st of subatividades) {
       if (!st.trim()) continue;
       const subPayload = { 
@@ -418,12 +438,17 @@ export default function Planner() {
         dataFim: payload.dataFim, 
         recorrencia: undefined 
       };
-      await fetch("/api/planner", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(subPayload),
-      });
+      try {
+        await fetch("/api/planner", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(subPayload),
+        });
+      } catch (err) {
+        toast("Erro ao criar subatividade: " + err.message, "error");
+      }
     }
 
+    toast("Tarefa criada com sucesso!", "success");
     setShowModal(false); resetForm(); fetchAtividades();
   };
 
@@ -435,34 +460,47 @@ export default function Planner() {
   };
 
   const handleAction = async (id, action, body = {}) => {
-    const res = await fetch(`/api/planner/${id}/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (res.ok) fetchAtividades();
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch(`/api/planner/${id}/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (res.ok) { fetchAtividades(); toast("Ação realizada!", "success"); }
+      else { const err = await res.json(); toast(err.message || "Erro na requisição", "error"); }
+    } catch (e) { toast("Erro de rede: " + e.message, "error"); }
   };
 
   const handleBloqueio = async (id) => {
-    const bid = prompt("ID da atividade que bloqueia esta tarefa:");
-    if (!bid) return;
-    const res = await fetch(`/api/planner/${id}/adicionarBloqueio`, { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify({ bloqueadorId: bid }) 
+    setPromptState({
+      open: true, title: "Bloquear tarefa", label: "ID da atividade que bloqueia esta tarefa:",
+      onConfirm: async (bid) => {
+        if (!bid) return;
+        try {
+          const res = await fetch(`/api/planner/${id}/adicionarBloqueio`, { 
+            method: "POST", headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ bloqueadorId: bid }) 
+          });
+          if (res.ok) { fetchAtividades(); toast("Bloqueio adicionado!", "success"); }
+          else { const err = await res.json(); toast(err.message, "error"); }
+        } catch (e) { toast("Erro de rede", "error"); }
+      }
     });
-    if (res.ok) fetchAtividades();
-    else { const err = await res.json(); alert(err.message); }
   };
 
-
   const handlePause = (id) => {
-    const tipo = prompt("Tipo de pausa:\n1 - Pausa normal (com justificativa)\n2 - Fim de expediente\n\nCancelar = voltar");
-    if (tipo === "1") {
-      const j = prompt("Justificativa da pausa (mínimo 3 caracteres):");
-      if (j === null) return;
-      if (j.trim().length < 3) { alert("Mínimo 3 caracteres"); return; }
-      handleAction(id, "pause", { justificativa: j.trim(), tipo: "pausa" });
-    } else if (tipo === "2") {
-      handleAction(id, "pause", { justificativa: "Fim de expediente", tipo: "fim_expediente" });
-    }
+    setPromptState({
+      open: true, title: "Tipo de pausa", label: "",
+      onConfirm: (tipo) => {
+        if (tipo === "1") {
+          setPromptState({
+            open: true, title: "Justificativa", label: "Justificativa da pausa (mínimo 3 caracteres):",
+            onConfirm: (j) => {
+              if (!j || j.trim().length < 3) { toast("Mínimo 3 caracteres", "error"); return; }
+              handleAction(id, "pause", { justificativa: j.trim(), tipo: "pausa" });
+            }
+          });
+        } else if (tipo === "2") {
+          handleAction(id, "pause", { justificativa: "Fim de expediente", tipo: "fim_expediente" });
+        }
+      }
+    });
   };
 
   const handleEdit = async (e) => {
@@ -478,9 +516,11 @@ export default function Planner() {
       payload.contaContabilNomes = nomes;
     }
 
-    const res = await fetch(`/api/planner/${editando.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (res.ok) { setShowModal(false); resetForm(); fetchAtividades(); }
-    else { const err = await res.json(); alert(err.message); }
+    try {
+      const res = await fetch(`/api/planner/${editando.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (res.ok) { setShowModal(false); resetForm(); fetchAtividades(); toast("Tarefa atualizada!", "success"); }
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const openEdit = (ativ) => {
@@ -499,22 +539,6 @@ export default function Planner() {
     setShowModal(true);
   };
 
-  const openView = (ativ) => {
-    if (!ativ) return;
-    const ids = ativ.contaContabilIds || (ativ.contaContabilId ? [ativ.contaContabilId] : []);
-    setForm({
-      empresaId: ativ.empresaId || '', titulo: ativ.titulo || '', descricao: ativ.descricao || '',
-      responsaveis: ativ.responsaveis || [], meses: ativ.meses || [], contaContabilIds: ids,
-      dataInicio: ativ.dataInicio || '', dataFim: ativ.dataFim || '',
-      recorrenciaTipo: '', recorrenciaIntervalo: 1,
-      paiId: ativ.paiId || '',
-    });
-    setSubatividades(ativ.subatividades || []);
-    setEditando(ativ);
-    setModalMode('view');
-    setShowModal(true);
-  };
-
   const getFilteredUsuarios = () => {
     let filtered = usuarios || [];
         if (form?.empresaId) {
@@ -530,8 +554,11 @@ export default function Planner() {
 
   const handleNota = async (id) => {
     if (!showNota?.texto) return;
-    const res = await fetch(`/api/planner/${id}/observacoes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto: showNota.texto, autor: user?.email || 'anon' }) });
-    if (res.ok) { setShowNota(null); fetchAtividades(); }
+    try {
+      const res = await fetch(`/api/planner/${id}/observacoes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto: showNota.texto, autor: user?.email || 'anon' }) });
+      if (res.ok) { setShowNota(null); fetchAtividades(); }
+      else { const err = await res.json(); toast(err.message, "error"); }
+    } catch (e) { toast("Erro de rede", "error"); }
   };
 
   const statusList = [
@@ -609,6 +636,7 @@ export default function Planner() {
                   {st.label} <Badge label={filtered.length} color={st.color} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                     {filtered.length === 0 && <div style={{ padding: 20, textAlign: "center", color: C.muted, fontSize: 12 }}>Nenhuma tarefa</div>}
                      {filtered.map(ativ => (
                         <Card key={ativ.id} style={{ padding: "12px 14px", cursor: "pointer", borderLeft: `3px solid ${st.color}`, marginLeft: (ativ.nivel || 0) * 12 }}
                           onClick={() => setShowDetailModal(ativ)}>
@@ -628,7 +656,7 @@ export default function Planner() {
                       <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>{formatTime(elapsed[ativ.id] || 0)}</div>
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }} onClick={e => e.stopPropagation()}>
                         {ativ.status === 'pending' && <><Btn variant="success" onClick={() => handleAction(ativ.id, "start", { usuarioId: user?.id })}><PlayIcon /></Btn><Btn variant="outline" onClick={() => openEdit(ativ)} style={{ fontSize: 9, padding: "3px 6px" }}>Editar</Btn></>}
-                        {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => { if (confirm("Concluir?")) handleAction(ativ.id, "complete"); }}><StopIcon /></Btn></>}
+                        {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => showConfirm("Concluir tarefa?", () => handleAction(ativ.id, "complete"))}><StopIcon /></Btn></>}
                         {ativ.status === 'paused' && <Btn variant="success" onClick={() => handleAction(ativ.id, "resume", { tipo: "normal" })}><PlayIcon /> Retomar</Btn>}
                         <Btn variant="outline" onClick={() => setShowNota({ id: ativ.id, texto: '' })}><NoteIcon /></Btn>
                       </div>
@@ -673,7 +701,7 @@ export default function Planner() {
                         <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace", marginBottom: 4 }}>{formatTime(elapsed[ativ.id] || 0)}</div>
                         <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
                           {ativ.status === 'pending' && <><Btn variant="success" onClick={() => handleAction(ativ.id, "start", { usuarioId: user?.id })}><PlayIcon /></Btn><Btn variant="outline" onClick={() => openEdit(ativ)} style={{ fontSize: 9, padding: "3px 6px" }}>Editar</Btn></>}
-                          {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => { if (confirm("Concluir?")) handleAction(ativ.id, "complete"); }}><StopIcon /></Btn></>}
+                          {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => showConfirm("Concluir tarefa?", () => handleAction(ativ.id, "complete"))}><StopIcon /></Btn></>}
                           {ativ.status === 'paused' && <Btn variant="success" onClick={() => handleAction(ativ.id, "resume", { tipo: "normal" })}><PlayIcon /></Btn>}
                           <Btn variant="outline" onClick={() => setShowNota({ id: ativ.id, texto: '' })} style={{ fontSize: 9, padding: "3px 6px" }}><NoteIcon /></Btn>
                         </div>
@@ -715,24 +743,54 @@ export default function Planner() {
       )}
 
 {showModal && (
-         <TaskForm
-           form={form}
-           setForm={setForm}
-           onSubmit={modalMode === 'create' ? handleCreate : modalMode === 'edit' ? handleEdit : (e) => e.preventDefault()}
-           onCancel={() => { setShowModal(false); resetForm(); }}
-           editando={editando}
-           modalMode={modalMode}
-           empresas={empresas}
-           contas={contas}
-           usuarios={usuarios}
-           equipes={equipes}
-           atividades={atividades}
-           subatividades={subatividades}
-           setSubatividades={setSubatividades}
-         />
+        <div style={{ position: "fixed", inset: 0, background: "#0005", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}
+          onClick={() => { setShowModal(false); resetForm(); }}>
+          <div style={{ background: C.white, borderRadius: 16, padding: 28, maxWidth: 600, maxHeight: "90vh", overflow: "auto", width: "100%", margin: 20 }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: C.text }}>
+                {modalMode === 'view' ? 'Detalhes da Tarefa' : modalMode === 'edit' ? 'Editar Tarefa' : 'Nova Tarefa'}
+              </div>
+              <button onClick={() => { setShowModal(false); resetForm(); }} style={{ border: "none", background: "transparent", fontSize: 24, cursor: "pointer", color: C.muted, padding: 0 }}>&times;</button>
+            </div>
+            <TaskForm
+              form={form}
+              setForm={setForm}
+              onSubmit={modalMode === 'create' ? handleCreate : modalMode === 'edit' ? handleEdit : (e) => e.preventDefault()}
+              onCancel={() => { setShowModal(false); resetForm(); }}
+              editando={editando}
+              modalMode={modalMode}
+              empresas={empresas}
+              contas={contas}
+              usuarios={usuarios}
+              equipes={equipes}
+              atividades={atividades}
+              subatividades={subatividades}
+              setSubatividades={setSubatividades}
+            />
+          </div>
+        </div>
       )}
 
-       {showDetailModal && <TaskDetailModal ativ={showDetailModal} onClose={() => setShowDetailModal(null)} empresas={empresas} contas={contas} onEdit={openEdit} atividades={atividades} />}
+        {showDetailModal && <TaskDetailModal ativ={showDetailModal} onClose={() => setShowDetailModal(null)} empresas={empresas} contas={contas} onEdit={openEdit} atividades={atividades} />}
+       <PromptModal
+         open={promptState.open}
+         title={promptState.title}
+         label={promptState.label}
+         onConfirm={(v) => { setPromptState(prev => ({ ...prev, open: false })); setTimeout(() => promptState.onConfirm(v), 0); }}
+         onCancel={() => setPromptState(prev => ({ ...prev, open: false }))}
+       />
+       {confirmDialog.open && (
+         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#0006", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100 }}
+           onClick={closeConfirm}>
+           <div style={{ background: C.white, borderRadius: 16, padding: 32, width: 360 }} onClick={e => e.stopPropagation()}>
+             <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 20 }}>{confirmDialog.message}</div>
+             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+               <button onClick={closeConfirm} style={{ padding: "10px 20px", borderRadius: 8, border: `1px solid ${C.ghost}`, background: C.white, color: C.muted, cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+               <button onClick={() => { closeConfirm(); confirmDialog.onConfirm(); }} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: C.lilac, color: C.white, cursor: "pointer", fontWeight: 600 }}>Confirmar</button>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 }

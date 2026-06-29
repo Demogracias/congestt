@@ -1,4 +1,4 @@
-import { Persistence } from '../../utils/persistence';
+import { Persistence, generateId } from '../../utils/persistence';
 
 interface Membro {
   id: string;
@@ -45,7 +45,7 @@ export class EquipesService {
     if (todas.find(e => e.nome === dados.nome)) throw new Error('Já existe uma equipe com este nome');
 
     const nova: Equipe = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       nome: dados.nome,
       supervisao: dados.supervisao,
       supervisorId: dados.supervisorId,
@@ -54,7 +54,7 @@ export class EquipesService {
       createdAt: new Date().toISOString().split('T')[0],
     };
 
-    this.persistence.add(nova);
+    await this.persistence.add(nova);
     return nova;
   }
 
@@ -65,7 +65,7 @@ export class EquipesService {
       const dup = this.persistence.getAll().find(e => e.id !== id && e.nome === dados.nome);
       if (dup) throw new Error('Já existe uma equipe com este nome');
     }
-    this.persistence.update(id, dados);
+    await this.persistence.update(id, dados);
     return this.persistence.getById(id);
   }
 
@@ -74,7 +74,7 @@ export class EquipesService {
     if (!equipe) throw new Error('Equipe não encontrada');
 
     const novoMembro: Membro = {
-      id: membro.id || Math.random().toString(36).substr(2, 9),
+      id: generateId(),
       nome: membro.nome,
       cargo: membro.cargo,
       nivel: membro.nivel,
@@ -82,8 +82,7 @@ export class EquipesService {
       perc: 0,
     };
 
-    equipe.membros.push(novoMembro);
-    this.persistence.update(equipeId, { membros: equipe.membros });
+    await this.persistence.update(equipeId, { membros: [...equipe.membros, novoMembro] });
     return novoMembro;
   }
 
@@ -93,12 +92,12 @@ export class EquipesService {
     const idx = equipe.membros.findIndex(m => m.id === membroId);
     if (idx === -1) throw new Error('Membro não encontrado');
     equipe.membros.splice(idx, 1);
-    this.persistence.update(equipeId, { membros: equipe.membros });
+    await this.persistence.update(equipeId, { membros: equipe.membros });
     return equipe;
   }
 
   async remover(id: string) {
-    const ok = this.persistence.delete(id);
+    const ok = await this.persistence.delete(id);
     if (!ok) throw new Error('Equipe não encontrada');
   }
 }
