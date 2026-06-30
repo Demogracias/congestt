@@ -1,13 +1,13 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 import { generateToken } from '../../middleware/authMiddleware';
 import bcrypt from 'bcryptjs';
 
 export class AuthService {
-  private users: Persistence<{ id: string; email: string; password: string; role: string; level: number }>;
+  private users: SqlitePersistence<{ id: string; email: string; password: string; role: string; level: number }>;
   private initPromise: Promise<void>;
 
   constructor() {
-    this.users = new Persistence<{ id: string; email: string; password: string; role: string; level: number }>('users.json', []);
+    this.users = new SqlitePersistence<{ id: string; email: string; password: string; role: string; level: number }>('users');
     this.initPromise = this.initialize();
   }
 

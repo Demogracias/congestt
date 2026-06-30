@@ -1,0 +1,62 @@
+[
+  {
+    "id": "1",
+    "nome": "Alpha",
+    "supervisao": "Gerência Regional SP",
+    "supervisorId": "",
+    "empresaIds": ["1", "3", "m0jrdk2tz"],
+    "membros": [
+      {
+        "id": "1",
+        "nome": "Carlos Silva",
+        "cargo": "Analista",
+        "nivel": 4,
+        "empresa": "MISA",
+        "perc": 94
+      },
+      {
+        "id": "2",
+        "nome": "Ana Rodrigues",
+        "cargo": "Assistente",
+        "nivel": 3,
+        "empresa": "NIBRA",
+        "perc": 88
+      },
+      {
+        "id": "3",
+        "nome": "Lucas Melo",
+        "cargo": "Estagiário",
+        "nivel": 1,
+        "empresa": "QUÍMICA",
+        "perc": 76
+      }
+    ],
+    "createdAt": "2024-01-01"
+  },
+  {
+    "id": "2",
+    "nome": "Beta",
+    "supervisao": "Gerência Regional RJ",
+    "supervisorId": "",
+    "empresaIds": ["2", "4"],
+    "membros": [
+      {
+        "id": "1",
+        "nome": "Fernanda Costa",
+        "cargo": "Analista",
+        "nivel": 4,
+        "empresa": "CALBRAS",
+        "perc": 91
+      },
+      {
+        "id": "2",
+        "nome": "Rafael Lima",
+        "cargo": "Auxiliar",
+        "nivel": 2,
+        "empresa": "MISA",
+        "perc": 72
+      }
+    ],
+    "createdAt": "2024-02-01"
+  }
+]

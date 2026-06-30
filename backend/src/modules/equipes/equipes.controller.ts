@@ -1,6 +1,6 @@
 import express from 'express';
 import { EquipesService } from './equipes.service';
-import { Persistence } from '../../utils/persistence';
+import { SqlitePersistence } from '../../database/SqlitePersistence';
 
 const router = express.Router();
 const service = new EquipesService();
@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
 
 router.get('/usuarios', async (req, res) => {
   try {
-    const usersPersistence = new Persistence<{ id: string; email: string; role: string; level: number }>('users.json', []);
+    const usersPersistence = new SqlitePersistence<{ id: string; email: string; role: string; level: number }>('users');
     const users = usersPersistence.getAll().map(u => ({ id: u.id, email: u.email, role: u.role, level: u.level }));
     res.json(users);
   } catch (error: any) {

@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 import { isValidCNPJ, formatCNPJ } from '../../utils/cnpj';
 import { consultarCNPJ, consultarFiliais } from '../../utils/receita-api';
 
@@ -25,15 +25,8 @@ export interface Empresa {
 }
 
 export class EmpresasService {
-  private persistence = new Persistence<Empresa>('empresas.json', [
-    { id: '1', cnpj: '12.345.678/0001-90', razaoSocial: 'MISA Indústria Ltda', apelido: 'MISA', porte: 'Grande', atividade: 'Indústria', grupoEconomico: 'Carbonil', equipe: 'Alpha', tipo: 'Matriz', tipoFechamento: 'Mensal', diaFechamento: 15, createdAt: '2024-01-15' },
-    { id: '2', cnpj: '98.765.432/0001-11', razaoSocial: 'NIBRA Química S/A', apelido: 'NIBRA', porte: 'Grande', atividade: 'Indústria', grupoEconomico: 'Carbonil', equipe: 'Beta', tipo: 'Filial', matrizCnpj: '12.345.678/0001-90', tipoFechamento: 'Mensal', diaFechamento: 15, createdAt: '2024-02-20' },
-    { id: '3', cnpj: '55.444.333/0001-22', razaoSocial: 'Química Central Ltda', apelido: 'QUÍMICA', porte: 'Médio', atividade: 'Indústria', grupoEconomico: 'Carbonil', equipe: 'Alpha', tipo: 'Matriz', tipoFechamento: 'Trimestral', diaFechamento: 10, createdAt: '2024-03-10' },
-    { id: '4', cnpj: '11.222.333/0001-44', razaoSocial: 'Calbras Serviços ME', apelido: 'CALBRAS', porte: 'Micro', atividade: 'Serviços', grupoEconomico: '', equipe: 'Beta', tipo: 'Matriz', tipoFechamento: 'Sem Movimento', diaFechamento: 5, createdAt: '2025-06-01' },
-  ]);
-  private gruposPersistence = new Persistence<GrupoEconomico>('grupos.json', [
-    { id: 'g1', nome: 'Carbonil', createdAt: '2024-01-01' },
-  ]);
+  private persistence = new SqlitePersistence<Empresa>('empresas');
+  private gruposPersistence = new SqlitePersistence<GrupoEconomico>('grupos_economicos');
 
   async listar(filtro?: { porte?: string; equipe?: string; atividade?: string; grupoEconomico?: string; search?: string }) {
     let result = this.persistence.getAll();

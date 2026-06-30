@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 
 interface Membro {
   id: string;
@@ -20,17 +20,7 @@ interface Equipe {
 }
 
 export class EquipesService {
-  private persistence = new Persistence<Equipe>('equipes.json', [
-    { id: '1', nome: 'Alpha', supervisao: 'Gerência Regional SP', supervisorId: '', empresaIds: [], membros: [
-      { id: 'm1', nome: 'Carlos Silva', cargo: 'Analista', nivel: 4, empresa: 'MISA', perc: 94 },
-      { id: 'm2', nome: 'Ana Rodrigues', cargo: 'Assistente', nivel: 3, empresa: 'NIBRA', perc: 88 },
-      { id: 'm3', nome: 'Lucas Melo', cargo: 'Estagiário', nivel: 1, empresa: 'QUÍMICA', perc: 76 },
-    ], createdAt: '2024-01-01' },
-    { id: '2', nome: 'Beta', supervisao: 'Gerência Regional RJ', supervisorId: '', empresaIds: [], membros: [
-      { id: 'm4', nome: 'Fernanda Costa', cargo: 'Analista', nivel: 4, empresa: 'CALBRAS', perc: 91 },
-      { id: 'm5', nome: 'Rafael Lima', cargo: 'Auxiliar', nivel: 2, empresa: 'MISA', perc: 72 },
-    ], createdAt: '2024-02-01' },
-  ]);
+  private persistence = new SqlitePersistence<Equipe>('equipes');
 
   async listar() {
     return this.persistence.getAll();

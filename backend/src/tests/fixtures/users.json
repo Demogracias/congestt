@@ -1,0 +1,16 @@
+[
+  {
+    "id": "1",
+    "email": "admin@congestt.com",
+    "password": "$2a$10$DGnt73Yo53xHHRzMpBXSUek94BLfc.v031LI2wz9x0JrB1npyVup2",
+    "role": "Gerente",
+    "level": 6
+  },
+  {
+    "id": "2",
+    "email": "user@congestt.com",
+    "password": "$2a$10$WE2PfxofZUvOixBa.6jSbu33KKryY7OpyHjqLbBhi7vE4FhdtKwGe",
+    "role": "Analista",
+    "level": 4
+  }
+]

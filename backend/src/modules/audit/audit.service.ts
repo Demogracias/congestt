@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 
 export interface AuditEntry {
   id: string;
@@ -12,11 +12,7 @@ export interface AuditEntry {
 }
 
 export class AuditService {
-  private persistence = new Persistence<AuditEntry>('audit.json', [
-    { id: 'a1', timestamp: '2026-06-27T08:00:00Z', usuarioId: '1', acao: 'login', recurso: 'auth', detalhes: 'Login realizado' },
-    { id: 'a2', timestamp: '2026-06-27T08:15:00Z', usuarioId: '1', acao: 'criar', recurso: 'empresa', recursoId: '5', detalhes: 'Nova empresa: Tech Solutions' },
-    { id: 'a3', timestamp: '2026-06-27T09:00:00Z', usuarioId: '1', acao: 'iniciar_timer', recurso: 'planner', recursoId: '2', detalhes: 'Timer iniciado: Fechamento NIBRA' },
-  ]);
+  private persistence = new SqlitePersistence<AuditEntry>('auditoria');
 
   async registrar(entry: Omit<AuditEntry, 'id' | 'timestamp'>) {
     const nova: AuditEntry = {

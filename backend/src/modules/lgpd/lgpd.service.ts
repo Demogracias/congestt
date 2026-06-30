@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 import * as crypto from 'crypto';
 
 export interface Consentimento {
@@ -19,9 +19,9 @@ export interface AnonimizacaoRequest {
 }
 
 export class LgpdService {
-  private consentimentos = new Persistence<Consentimento>('consentimentos.json', []);
-  private anonimizacoes = new Persistence<AnonimizacaoRequest>('anonimizacoes.json', []);
-  private users = new Persistence<{ id: string; email: string; password: string; role: string; level: number }>('users.json', []);
+  private consentimentos = new SqlitePersistence<Consentimento>('consentimentos');
+  private anonimizacoes = new SqlitePersistence<AnonimizacaoRequest>('anonimizacoes');
+  private users = new SqlitePersistence<{ id: string; email: string; password: string; role: string; level: number }>('users');
 
   async listarConsentimentos(usuarioId?: string) {
     let result = this.consentimentos.getAll();

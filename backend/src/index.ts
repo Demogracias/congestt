@@ -6,6 +6,9 @@ import os from 'os';
 
 dotenv.config();
 
+import { runSeed } from './database/Seed';
+runSeed();
+
 const app = express();
 app.use(cors({
   origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : '*',

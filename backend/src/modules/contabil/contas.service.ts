@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 
 export interface ContaContabil {
   id: string;
@@ -14,20 +14,7 @@ export interface ContaContabil {
 }
 
 export class ContasService {
-  private persistence = new Persistence<ContaContabil>('contas.json', [
-    { id: 'c1', empresaId: '', codigo: '1', nome: 'Ativo', tipo: 'Ativo', natureza: 'Sintética', categoria: 'Ativo', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c2', empresaId: '', codigo: '1.01', nome: 'Circulante', tipo: 'Ativo', natureza: 'Sintética', categoria: 'Ativo', contaPaiId: 'c1', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c3', empresaId: '', codigo: '1.01.001', nome: 'Caixa', tipo: 'Ativo', natureza: 'Analítica', categoria: 'Ativo', contaPaiId: 'c2', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c4', empresaId: '', codigo: '1.01.002', nome: 'Banco', tipo: 'Ativo', natureza: 'Analítica', categoria: 'Ativo', contaPaiId: 'c2', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c5', empresaId: '', codigo: '1.01.003', nome: 'Aplicações', tipo: 'Ativo', natureza: 'Analítica', categoria: 'Ativo', contaPaiId: 'c2', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c6', empresaId: '', codigo: '1.01.004', nome: 'Clientes', tipo: 'Ativo', natureza: 'Analítica', categoria: 'Ativo', contaPaiId: 'c2', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c7', empresaId: '', codigo: '1.02', nome: 'Não Circulante', tipo: 'Ativo', natureza: 'Sintética', categoria: 'Ativo', contaPaiId: 'c1', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c8', empresaId: '', codigo: '1.02.001', nome: 'Imobilizado', tipo: 'Ativo', natureza: 'Analítica', categoria: 'Ativo', contaPaiId: 'c7', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c9', empresaId: '', codigo: '2', nome: 'Passivo', tipo: 'Passivo', natureza: 'Sintética', categoria: 'Passivo', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c10', empresaId: '', codigo: '2.01', nome: 'Circulante', tipo: 'Passivo', natureza: 'Sintética', categoria: 'Passivo', contaPaiId: 'c9', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c11', empresaId: '', codigo: '2.01.001', nome: 'Fiscal', tipo: 'Passivo', natureza: 'Analítica', categoria: 'Passivo', contaPaiId: 'c10', ativa: true, createdAt: '2024-01-01' },
-    { id: 'c12', empresaId: '', codigo: '3', nome: 'DRE', tipo: 'DRE', natureza: 'Sintética', categoria: 'DRE', ativa: true, createdAt: '2024-01-01' },
-  ]);
+  private persistence = new SqlitePersistence<ContaContabil>('contas_contabeis');
 
   async listar(empresaId?: string) {
     let result = this.persistence.getAll();

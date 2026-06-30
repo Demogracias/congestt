@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 
 export interface Pausa {
   inicio: string;
@@ -66,7 +66,7 @@ export interface Atividade {
 }
 
 export class PlannerService {
-  private persistence = new Persistence<Atividade>('planner.json', []);
+  private persistence = new SqlitePersistence<Atividade>('atividades');
 
   private get atividades() { return this.persistence.getAll(); }
 

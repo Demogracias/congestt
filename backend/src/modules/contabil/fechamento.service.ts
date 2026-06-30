@@ -1,4 +1,4 @@
-import { Persistence, generateId } from '../../utils/persistence';
+import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 
 export interface FechamentoContabil {
   id: string;
@@ -21,14 +21,8 @@ export interface HistoricoFechamento {
 }
 
 export class FechamentoService {
-  private fechamentos = new Persistence<FechamentoContabil>('fechamentos.json', [
-    { id: 'f1', empresaId: '1', periodo: '2026-01', status: 'concluido', aprovadoPor: '1', createdAt: '2026-02-01', updatedAt: '2026-02-05' },
-    { id: 'f2', empresaId: '2', periodo: '2026-01', status: 'em_andamento', createdAt: '2026-02-01', updatedAt: '2026-02-10' },
-    { id: 'f3', empresaId: '3', periodo: '2026-01', status: 'nao_iniciado', createdAt: '2026-02-01', updatedAt: '2026-02-01' },
-    { id: 'f4', empresaId: '1', periodo: '2026-02', status: 'em_andamento', createdAt: '2026-03-01', updatedAt: '2026-03-05' },
-  ]);
-
-  private historicoPersistence = new Persistence<{ id: string; fechamentoId: string; acao: string; usuarioId: string; descricao: string; createdAt: string }>('fechamentos_historico.json', []);
+  private fechamentos = new SqlitePersistence<FechamentoContabil>('fechamentos_contabeis');
+  private historicoPersistence = new SqlitePersistence<{ id: string; fechamentoId: string; acao: string; usuarioId: string; descricao: string; createdAt: string }>('fechamentos_historico');
 
   async listar(empresaId?: string, periodo?: string) {
     let result = this.fechamentos.getAll();
