@@ -5,6 +5,7 @@ import { AuthRequest } from '../../middleware/authMiddleware';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { validateBody, validateQuery } from '../../middleware/validate';
 import { criarTarefaSchema, listarTarefasSchema, pausarTarefaSchema, iniciarTarefaSchema } from './planner.schema';
+import logger from '../../utils/logger';
 
 const router = express.Router();
 const service = new PlannerService();
@@ -27,7 +28,7 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 router.post('/', validateBody(criarTarefaSchema), asyncHandler(async (req: AuthRequest, res) => {
   const atv = await service.criar(req.body);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'planner', recursoId: atv.id, detalhes: `Nova tarefa: ${atv.titulo}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'planner', recursoId: atv.id, detalhes: `Nova tarefa: ${atv.titulo}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.status(201).json(atv);
 }));
 
@@ -39,14 +40,14 @@ router.put('/:id', asyncHandler(async (req: AuthRequest, res) => {
 router.post('/:id/start', validateBody(iniciarTarefaSchema), asyncHandler(async (req: AuthRequest, res) => {
   const { usuarioId } = req.body;
   const atv = await service.iniciarTimer(req.params.id, usuarioId);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'iniciar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: `Timer iniciado: ${atv?.titulo}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'iniciar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: `Timer iniciado: ${atv?.titulo}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.json(atv);
 }));
 
 router.post('/:id/pause', validateBody(pausarTarefaSchema), asyncHandler(async (req: AuthRequest, res) => {
   const { justificativa, tipo } = req.body;
   const atv = await service.pausarTimer(req.params.id, justificativa, tipo || 'pausa');
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'pausar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: justificativa || 'Pausa' }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'pausar_timer', recurso: 'planner', recursoId: req.params.id, detalhes: justificativa || 'Pausa' }).catch(e => logger.error({ err: e }, 'audit'));
   res.json(atv);
 }));
 
@@ -58,7 +59,7 @@ router.post('/:id/resume', asyncHandler(async (req, res) => {
 
 router.post('/:id/complete', asyncHandler(async (req: AuthRequest, res) => {
   const atv = await service.concluir(req.params.id);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'concluir', recurso: 'planner', recursoId: req.params.id, detalhes: `Concluída: ${atv?.titulo}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'concluir', recurso: 'planner', recursoId: req.params.id, detalhes: `Concluída: ${atv?.titulo}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.json(atv);
 }));
 

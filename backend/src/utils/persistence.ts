@@ -1,14 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import logger from './logger';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data');
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {
-    try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {
-      console.error('[Persistence] Erro ao criar diretório:', e);
-    }
+      try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {
+        logger.error({ err: e }, 'Erro ao criar diretório');
+      }
   }
 }
 
@@ -33,10 +34,10 @@ export class Persistence<T extends { id: string }> {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) return parsed;
-        console.error(`[Persistence] ${this.filePath} has invalid format (expected array), resetting to defaults`);
+        logger.warn({ path: this.filePath }, 'Arquivo JSON com formato inválido, resetando');
       }
     } catch (e) {
-      console.error(`[Persistence] Error reading ${this.filePath}:`, e);
+      logger.error({ err: e, path: this.filePath }, 'Erro ao ler arquivo');
     }
     const copy = JSON.parse(JSON.stringify(defaults));
     this.flushSync(copy);
@@ -54,9 +55,7 @@ export class Persistence<T extends { id: string }> {
     const chain = this.writeQueue.then(() => {
       this.flushSync(data);
     });
-    this.writeQueue = chain.catch(err => {
-      console.error('[Persistence] Erro ao escrever, resetando fila:', err);
-    });
+    this.writeQueue = chain.catch(err => { logger.error({ err }, 'Erro ao escrever, resetando fila'); });
     return chain;
   }
 

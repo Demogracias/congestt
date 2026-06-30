@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import logger from '../utils/logger';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data');
 const SECRET_FILE = path.join(DATA_DIR, '.jwt_secret');
@@ -15,14 +16,14 @@ function loadOrCreateSecret(): string {
       return fs.readFileSync(SECRET_FILE, 'utf-8').trim();
     }
   } catch (e) {
-    console.error('[Auth] Erro ao ler JWT secret file:', e);
+    logger.error({ err: e }, 'Erro ao ler JWT secret file');
   }
   const generated = crypto.randomBytes(32).toString('hex');
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(SECRET_FILE, generated, 'utf-8');
   } catch (e) {
-    console.error('[Auth] Erro ao salvar JWT secret file:', e);
+    logger.error({ err: e }, 'Erro ao salvar JWT secret file');
   }
   return generated;
 }
@@ -52,7 +53,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.usuario = { id: decoded.id, email: decoded.email, role: decoded.role, level: decoded.level };
     next();
   } catch (e) {
-    console.error('[AuthMiddleware] JWT verify error:', e);
+    logger.warn({ err: e }, 'JWT verify error');
     return res.status(401).json({ message: 'Token inválido ou expirado' });
   }
 }

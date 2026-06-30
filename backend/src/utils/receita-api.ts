@@ -1,3 +1,5 @@
+import logger from './logger';
+
 interface ReceitaData {
   cnpj: string;
   razaoSocial: string;
@@ -74,7 +76,7 @@ export async function consultarCNPJ(cnpj: string): Promise<ReceitaData | null> {
       return receitaData.razaoSocial ? receitaData : null;
     }
   } catch (err) {
-    console.warn('[ReceitaAPI] Erro ao consultar, usando mock:', err);
+    logger.warn({ err }, 'Erro ao consultar CNPJ, usando mock');
   }
 
   const mockData = MOCK_DATABASE[clean] || null;

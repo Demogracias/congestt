@@ -1,6 +1,7 @@
 import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 import { generateToken } from '../../middleware/authMiddleware';
 import bcrypt from 'bcryptjs';
+import logger from '../../utils/logger';
 
 export class AuthService {
   private users: SqlitePersistence<{ id: string; email: string; password: string; role: string; level: number }>;
@@ -18,7 +19,7 @@ export class AuthService {
       const userHash = await bcrypt.hash('123', 10);
       await this.users.add({ id: '1', email: 'admin@congestt.com', password: adminHash, role: 'Gerente', level: 6 });
       await this.users.add({ id: '2', email: 'user@congestt.com', password: userHash, role: 'Analista', level: 4 });
-      console.info('[Auth] Usuários padrão criados');
+      logger.info('Usuários padrão criados');
     }
     await this.migrarSenhas();
   }
@@ -33,7 +34,7 @@ export class AuthService {
         altered = true;
       }
     }
-    if (altered) console.info('[Auth] Senhas migradas para bcrypt');
+    if (altered) logger.info('Senhas migradas para bcrypt');
   }
 
   private registrationKeys: Record<string, { role: string; level: number }> = {

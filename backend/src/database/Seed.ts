@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import logger from '../utils/logger';
 import { getDatabase } from './Database';
 
 const DATA_DIR = path.resolve(__dirname, '../../../data');
@@ -62,9 +63,9 @@ export function runSeed() {
         }
       });
       insertMany(data);
-      console.info(`[Seed] Migrados ${data.length} registros de ${fileName} para ${tableName}`);
+      logger.info({ count: data.length, tableName, fileName }, 'Dados migrados');
     } catch (e) {
-      console.error(`[Seed] Erro ao migrar ${fileName}:`, e);
+      logger.error({ err: e, fileName }, 'Erro ao migrar dados');
     }
   }
 }

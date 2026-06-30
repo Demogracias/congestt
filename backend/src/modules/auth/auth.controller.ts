@@ -5,6 +5,7 @@ import { authService } from './auth.service';
 import { auditService } from '../audit/audit.service';
 import { getJwtSecret } from '../../middleware/authMiddleware';
 import { asyncHandler } from '../../middleware/asyncHandler';
+import logger from '../../utils/logger';
 
 const router = express.Router();
 
@@ -19,14 +20,14 @@ const loginLimiter = rateLimit({
 router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   const user = await authService.login(email, password);
-  auditService.registrar({ usuarioId: user.id, acao: 'login', recurso: 'auth', detalhes: `Login: ${email}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: user.id, acao: 'login', recurso: 'auth', detalhes: `Login: ${email}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.json(user);
 }));
 
 router.post('/register', asyncHandler(async (req, res) => {
   const { email, password, key } = req.body;
   const user = await authService.register(email, password, key);
-  auditService.registrar({ usuarioId: user.id, acao: 'registrar', recurso: 'auth', detalhes: `Registro: ${email} com role ${user.role}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: user.id, acao: 'registrar', recurso: 'auth', detalhes: `Registro: ${email} com role ${user.role}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.status(201).json(user);
 }));
 

@@ -1,5 +1,6 @@
 import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 import { AppError, ValidationError, NotFoundError } from '../../utils/errors';
+import logger from '../../utils/logger';
 
 export interface Pausa {
   inicio: string;
@@ -145,7 +146,7 @@ export class PlannerService {
     }
 
     if (dados.recorrencia) {
-      this.criarRecorrencias(nova, dados).catch(err => console.error('[Planner] Erro ao criar recorrências:', err));
+      this.criarRecorrencias(nova, dados).catch(err => { logger.error({ err }, 'Erro ao criar recorrências'); });
     }
 
     return nova;

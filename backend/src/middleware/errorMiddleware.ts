@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors';
+import logger from '../utils/logger';
 
 export function errorMiddleware(err: Error, req: Request, res: Response, next: NextFunction) {
   if (err instanceof AppError) {
@@ -9,6 +10,6 @@ export function errorMiddleware(err: Error, req: Request, res: Response, next: N
     });
     return;
   }
-  console.error('[Error]', err.message);
+  logger.error({ err: err.message }, 'Erro interno');
   res.status(500).json({ message: 'Erro interno do servidor' });
 }

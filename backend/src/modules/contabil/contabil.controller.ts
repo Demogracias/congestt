@@ -6,6 +6,7 @@ import { authService } from '../auth/auth.service';
 import { auditService } from '../audit/audit.service';
 import { AuthRequest } from '../../middleware/authMiddleware';
 import { asyncHandler } from '../../middleware/asyncHandler';
+import logger from '../../utils/logger';
 
 const router = express.Router();
 const contasService = new ContasService();
@@ -26,7 +27,7 @@ router.get('/contas/:id', asyncHandler(async (req, res) => {
 
 router.post('/contas', asyncHandler(async (req: AuthRequest, res) => {
   const conta = await contasService.criar(req.body);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'contabil', recursoId: conta.id, detalhes: `Nova conta: ${conta.codigo} - ${conta.nome}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'contabil', recursoId: conta.id, detalhes: `Nova conta: ${conta.codigo} - ${conta.nome}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.status(201).json(conta);
 }));
 
@@ -36,13 +37,13 @@ router.post('/contas/importar', asyncHandler(async (req: AuthRequest, res) => {
     return res.status(400).json({ message: 'Informe empresaId e array contas' });
   }
   const result = await contasService.importarPlanilha(empresaId, contas);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'importar', recurso: 'contabil', recursoId: empresaId, detalhes: `Importadas ${result.length} contas` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'importar', recurso: 'contabil', recursoId: empresaId, detalhes: `Importadas ${result.length} contas` }).catch(e => logger.error({ err: e }, 'audit'));
   res.status(201).json({ importadas: result.length, contas: result });
 }));
 
 router.delete('/contas/:id', asyncHandler(async (req: AuthRequest, res) => {
   const conta = await contasService.desativar(req.params.id);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'desativar', recurso: 'contabil', recursoId: req.params.id, detalhes: `Conta desativada: ${conta?.codigo} - ${conta?.nome}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'desativar', recurso: 'contabil', recursoId: req.params.id, detalhes: `Conta desativada: ${conta?.codigo} - ${conta?.nome}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.json(conta);
 }));
 

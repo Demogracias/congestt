@@ -1,3 +1,5 @@
+import logger from './logger';
+
 interface ArquivoProcessado {
   linhas: Record<string, string>[];
   errors: string[];
@@ -24,7 +26,7 @@ export function parseExcelConteudo(conteudo: string): ArquivoProcessado {
       result.linhas.push(linha);
     }
   } catch (e) {
-    console.error('[ArquivoParser] Erro ao processar arquivo:', e);
+    logger.error({ err: e }, 'Erro ao processar arquivo');
     result.errors.push('Erro ao processar arquivo');
   }
   return result;
@@ -54,7 +56,7 @@ export function parseXMLConteudo(conteudo: string): ArquivoProcessado {
       }
     }
   } catch (e) {
-    console.error('[ArquivoParser] Erro ao processar XML:', e);
+    logger.error({ err: e }, 'Erro ao processar XML');
     result.errors.push('Erro ao processar XML');
   }
   return result;

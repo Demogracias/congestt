@@ -5,6 +5,7 @@ import { AuthRequest } from '../../middleware/authMiddleware';
 import { asyncHandler } from '../../middleware/asyncHandler';
 import { validateBody, validateQuery } from '../../middleware/validate';
 import { criarEmpresaSchema, atualizarEmpresaSchema, listarEmpresasSchema } from './empresas.schema';
+import logger from '../../utils/logger';
 
 const router = express.Router();
 const service = new EmpresasService();
@@ -43,19 +44,19 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 router.post('/', validateBody(criarEmpresaSchema), asyncHandler(async (req: AuthRequest, res) => {
   const empresa = await service.criar(req.body);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'empresa', recursoId: empresa.id, detalhes: `Nova empresa: ${empresa.apelido}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'criar', recurso: 'empresa', recursoId: empresa.id, detalhes: `Nova empresa: ${empresa.apelido}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.status(201).json(empresa);
 }));
 
 router.put('/:id', validateBody(atualizarEmpresaSchema), asyncHandler(async (req: AuthRequest, res) => {
   const empresa = await service.atualizar(req.params.id, req.body);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'atualizar', recurso: 'empresa', recursoId: empresa?.id, detalhes: `Empresa atualizada: ${empresa?.apelido}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'atualizar', recurso: 'empresa', recursoId: empresa?.id, detalhes: `Empresa atualizada: ${empresa?.apelido}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.json(empresa);
 }));
 
 router.delete('/:id', asyncHandler(async (req: AuthRequest, res) => {
   await service.remover(req.params.id);
-  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'excluir', recurso: 'empresa', recursoId: req.params.id, detalhes: `Empresa removida: ${req.params.id}` }).catch(e => console.error('[Audit]', e));
+  auditService.registrar({ usuarioId: req.usuario?.id || 'unknown', acao: 'excluir', recurso: 'empresa', recursoId: req.params.id, detalhes: `Empresa removida: ${req.params.id}` }).catch(e => logger.error({ err: e }, 'audit'));
   res.status(204).send();
 }));
 
