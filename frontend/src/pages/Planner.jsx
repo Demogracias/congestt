@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { DndContext, DragOverlay, useDroppable, closestCorners, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import TaskForm from "../components/TaskForm";
 import PromptModal from "../components/PromptModal";
 import { useToast } from "../components/Toast";
@@ -52,6 +55,76 @@ function formatTime(seconds) {
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+const statusColor = (s) => s === 'completed' ? C.success : s === 'running' ? C.warn : s === 'paused' ? C.lilac : C.muted;
+
+function DraggableCard({ ativ, style, onClick, children }) {
+  return (
+    <div style={{ background: C.white, borderRadius: 12, border: `1px solid ${C.ghost}`, padding: "12px 14px", cursor: "grab", ...style }}
+      onClick={onClick}>
+      {children}
+    </div>
+  );
+}
+
+function SortableTaskCard({ ativ, selectedIds, toggleSelect, empresas, elapsed, filtroEquipe, usuarios, statusColor, user, handleAction, handlePause, showConfirm, openEdit, setShowNota, st, setShowDetailModal }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: ativ.id, data: { status: ativ.status } });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    padding: "12px 14px",
+    cursor: isDragging ? "grabbing" : "pointer",
+    borderLeft: `3px solid ${statusColor(ativ.status)}`,
+    marginLeft: (ativ.nivel || 0) * 12,
+    background: C.white,
+    borderRadius: 12,
+    border: `1px solid ${isDragging ? C.lilac : C.ghost}`,
+    touchAction: "none",
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} onClick={() => { if (!selectedIds.has(ativ.id)) setShowDetailModal(ativ); }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <div onClick={e => { e.stopPropagation(); toggleSelect(ativ.id); }} style={{ padding: 2, cursor: "pointer", flexShrink: 0 }}>
+          <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${selectedIds.has(ativ.id) ? C.lilac : C.ghost}`, background: selectedIds.has(ativ.id) ? C.lilac : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {selectedIds.has(ativ.id) && <span style={{ color: C.white, fontSize: 11, fontWeight: 700 }}>&#10003;</span>}
+          </div>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 4 }}>{ativ.titulo}</div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+            {ativ.empresaId && <Badge label={empresas.find(e => e.id === ativ.empresaId)?.apelido || '—'} color={C.purple} />}
+            {ativ.meses?.map(m => <Badge key={m} label={m} color={C.soft} />)}
+          </div>
+          {filtroEquipe && (
+            <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>
+              {ativ.responsaveis?.map(r => {
+                const usr = usuarios.find(u => u.id === r);
+                return usr ? <Badge key={r} label={usr.email.split('@')[0]} color={C.mid} /> : null;
+              })}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>{formatTime(elapsed[ativ.id] || 0)}</div>
+          <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }} onClick={e => e.stopPropagation()}>
+            {ativ.status === 'pending' && <><Btn variant="success" onClick={() => handleAction(ativ.id, "start", { usuarioId: user?.id })}><PlayIcon /></Btn><Btn variant="outline" onClick={() => openEdit(ativ)} style={{ fontSize: 9, padding: "3px 6px" }}>Editar</Btn></>}
+            {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => showConfirm("Concluir tarefa?", () => handleAction(ativ.id, "complete"))}><StopIcon /></Btn></>}
+            {ativ.status === 'paused' && <Btn variant="success" onClick={() => handleAction(ativ.id, "resume", { tipo: "normal" })}><PlayIcon /> Retomar</Btn>}
+            <Btn variant="outline" onClick={() => setShowNota({ id: ativ.id, texto: '' })}><NoteIcon /></Btn>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DroppableColumn({ id, children, style }) {
+  const { setNodeRef, isOver } = useDroppable({ id, data: { type: 'column' } });
+  return (
+    <div ref={setNodeRef} style={{ minHeight: 60, transition: "background 0.15s", borderRadius: 12, background: isOver ? C.ghost : "transparent", ...style }}>
+      {children}
+    </div>
+  );
 }
 
 const monthNames = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -110,8 +183,6 @@ function CalendarView({ atividades, empresas, elapsed, user, handleAction, handl
   const dias = [];
   for (let i = 0; i < firstDay; i++) dias.push(null);
   for (let d = 1; d <= daysInMonth; d++) dias.push(d);
-
-  const statusColor = (s) => s === 'completed' ? C.success : s === 'running' ? C.warn : s === 'paused' ? C.lilac : C.muted;
 
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -364,17 +435,29 @@ export default function Planner() {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: () => {} });
   const [pauseModal, setPauseModal] = useState({ open: false, id: null, step: 'tipo', tipo: 'pausa' });
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [selecting, setSelecting] = useState(false);
+  const [activeId, setActiveId] = useState(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleDragStart = (event) => { setActiveId(event.active.id); };
+  const handleDragEnd = (event) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || !active) return;
+    const activeStatus = active.data.current?.status;
+    const overCol = over.data.current?.type === 'column' ? over.id : (() => {
+      const overItem = atividades.find(a => a.id === over.id);
+      return overItem ? overItem.status : null;
+    })();
+    if (!overCol || activeStatus === overCol) return;
+    const id = active.id;
+    if (overCol === 'completed') handleAction(id, 'complete');
+    else if (overCol === 'running' && activeStatus === 'pending') handleAction(id, 'start', { usuarioId: user?.id });
+    else if (overCol === 'paused' && activeStatus === 'running') handlePause(id);
+    else if (overCol === 'running' && activeStatus === 'paused') handleAction(id, 'resume', { tipo: 'normal' });
+  };
+
   const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
   const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: () => {} });
-
-  const toggleSelect = (id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
   const selectAll = (ids) => {
     if (selectedIds.size === ids.length) setSelectedIds(new Set());
     else setSelectedIds(new Set(ids));
@@ -699,6 +782,7 @@ export default function Planner() {
       )}
 
       {visao === "lista" && (
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, alignItems: "start" }}>
            {statusList.map(st => {
               let filtered = (atividades || []).filter(a => a.status === st.key);
@@ -714,7 +798,7 @@ export default function Planner() {
                 }));
              }
              if (filtroConta) {
-               filtered = filtered.filter(a => (a.contaContabilIds || []).includes(filtroConta) || a.contaContabilId === filtroConta);
+                filtered = filtered.filter(a => (a.contaContabilIds || []).includes(filtroConta) || a.contaContabilId === filtroConta);
              }
               if (filtroMes !== null) {
                 filtered = filtered.filter(a => (a.meses || []).some(m => m === filtroMes || m.startsWith(filtroMes)));
@@ -730,47 +814,24 @@ export default function Planner() {
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: st.color }} />
                   {st.label} <Badge label={filtered.length} color={st.color} />
                 </div>
+                <DroppableColumn id={st.key}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                      {filtered.length === 0 && <div style={{ padding: 20, textAlign: "center", color: C.muted, fontSize: 12 }}>Nenhuma tarefa</div>}
-                   {filtered.map(ativ => (
-                         <Card key={ativ.id} style={{ padding: "12px 14px", cursor: "pointer", borderLeft: `3px solid ${st.color}`, marginLeft: (ativ.nivel || 0) * 12 }}
-                           onClick={() => { if (!selectedIds.has(ativ.id)) setShowDetailModal(ativ); }}>
-                           <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                             <div onClick={e => { e.stopPropagation(); toggleSelect(ativ.id); }} style={{ padding: 2, cursor: "pointer", flexShrink: 0 }}>
-                               <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${selectedIds.has(ativ.id) ? C.lilac : C.ghost}`, background: selectedIds.has(ativ.id) ? C.lilac : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                 {selectedIds.has(ativ.id) && <span style={{ color: C.white, fontSize: 11, fontWeight: 700 }}>&#10003;</span>}
-                               </div>
-                             </div>
-                             <div style={{ flex: 1 }}>
-                           <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 4 }}>{ativ.titulo}</div>
-                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
-                         {ativ.empresaId && <Badge label={empresas.find(e => e.id === ativ.empresaId)?.apelido || '—'} color={C.purple} />}
-                         {ativ.meses?.map(m => <Badge key={m} label={m} color={C.soft} />)}
-                       </div>
-                       {filtroEquipe && (
-                         <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>
-                           {ativ.responsaveis?.map(r => {
-                             const usr = usuarios.find(u => u.id === r);
-                             return usr ? <Badge key={r} label={usr.email.split('@')[0]} color={C.mid} /> : null;
-                           })}
-                         </div>
-                       )}
-                       <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>{formatTime(elapsed[ativ.id] || 0)}</div>
-                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }} onClick={e => e.stopPropagation()}>
-                         {ativ.status === 'pending' && <><Btn variant="success" onClick={() => handleAction(ativ.id, "start", { usuarioId: user?.id })}><PlayIcon /></Btn><Btn variant="outline" onClick={() => openEdit(ativ)} style={{ fontSize: 9, padding: "3px 6px" }}>Editar</Btn></>}
-                         {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => showConfirm("Concluir tarefa?", () => handleAction(ativ.id, "complete"))}><StopIcon /></Btn></>}
-                         {ativ.status === 'paused' && <Btn variant="success" onClick={() => handleAction(ativ.id, "resume", { tipo: "normal" })}><PlayIcon /> Retomar</Btn>}
-                         <Btn variant="outline" onClick={() => setShowNota({ id: ativ.id, texto: '' })}><NoteIcon /></Btn>
-                       </div>
-                     </div>
-                     </div>
-                   </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                     {filtered.map(ativ => (
+                       <SortableTaskCard key={ativ.id} ativ={ativ} selectedIds={selectedIds} toggleSelect={toggleSelect} empresas={empresas} elapsed={elapsed} filtroEquipe={filtroEquipe} usuarios={usuarios} statusColor={statusColor} user={user} handleAction={handleAction} handlePause={handlePause} showConfirm={showConfirm} openEdit={openEdit} setShowNota={setShowNota} st={st} setShowDetailModal={setShowDetailModal} />
+                   ))}
+                 </div>
+                </DroppableColumn>
+               </div>
+             );
+           })}
+         </div>
+        <DragOverlay>
+          {activeId ? <div style={{ padding: "12px 14px", background: C.white, borderRadius: 12, border: `2px solid ${C.lilac}`, boxShadow: "0 8px 24px #0003", opacity: 0.9 }}>
+            {(() => { const a = atividades.find(t => t.id === activeId); return a ? a.titulo : ''; })()}
+          </div> : null}
+        </DragOverlay>
+        </DndContext>
       )}
 
       {visao === "grupo" && (
