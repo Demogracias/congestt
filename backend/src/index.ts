@@ -3,11 +3,28 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import os from 'os';
+import { exec } from 'child_process';
 
 dotenv.config();
 
+// Validate required env vars
+const PORT = parseInt(process.env.PORT || '3001', 10);
+if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
+  console.error('[FATAL] PORT inválida:', process.env.PORT);
+  process.exit(1);
+}
+const HOST = process.env.HOST || '0.0.0.0';
+
 import { runSeed } from './database/Seed';
 runSeed();
+
+// Auto-backup on startup (async, non-blocking)
+const backupScript = path.resolve(__dirname, '../backup.js');
+try {
+  exec(`node "${backupScript}"`, { shell: true as any, timeout: 30000 }, (err: any) => {
+    if (err) console.warn('[Backup] Falha (ignorada):', err.message.slice(0, 80));
+  });
+} catch { /* silently ignore backup errors */ }
 
 const app = express();
 app.use(cors({
@@ -66,12 +83,6 @@ function getLocalIP() {
   return '127.0.0.1';
 }
 
-const PORT = parseInt(process.env.PORT || '3001', 10);
-if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
-  console.error('[FATAL] PORT inválida:', process.env.PORT);
-  process.exit(1);
-}
-const HOST = process.env.HOST || '0.0.0.0';
 const server = app.listen(PORT, HOST, () => {
   const ip = getLocalIP();
   console.log(`ConGestt rodando em:`);

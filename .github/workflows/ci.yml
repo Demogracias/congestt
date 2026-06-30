@@ -48,7 +48,7 @@ jobs:
       - name: Setup test data
         run: |
           mkdir -p ../data
-          cp src/tests/fixtures/data/*.json ../data/
+          cp src/tests/fixtures/*.json ../data/
 
       - name: Build & start server
         run: |

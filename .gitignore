@@ -4,4 +4,5 @@ dist/
 *.log
 backend/data/
 data/
+backups/
 *.tmp
