@@ -21,6 +21,8 @@ export const listarTarefasSchema = z.object({
   mes: z.string().optional(),
   status: z.string().optional(),
   responsavel: z.string().optional(),
+  page: z.string().optional(),
+  pageSize: z.string().optional(),
 });
 
 export const pausarTarefaSchema = z.object({

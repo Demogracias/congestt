@@ -84,6 +84,16 @@ export class PlannerService {
     return result;
   }
 
+  async listarPaginado(filtro?: { empresaId?: string; equipe?: string; mes?: string; status?: string; responsavel?: string; page?: number; pageSize?: number }) {
+    const result = await this.listar(filtro);
+    const total = result.length;
+    const page = Math.max(1, filtro?.page || 1);
+    const pageSize = Math.min(200, Math.max(1, filtro?.pageSize || 100));
+    const start = (page - 1) * pageSize;
+    const data = result.slice(start, start + pageSize);
+    return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) };
+  }
+
   async buscarPorId(id: string) {
     return this.persistence.getById(id) || null;
   }

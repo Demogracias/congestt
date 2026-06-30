@@ -1,6 +1,7 @@
 import { EmpresasService, Empresa } from '../empresas/empresas.service';
 import { EquipesService } from '../equipes/equipes.service';
 import { PlannerService } from '../planner/planner.service';
+import { cacheWrap, cacheClear } from '../../utils/cache';
 
 export class DashboardService {
   private empresasService = new EmpresasService();
@@ -8,6 +9,7 @@ export class DashboardService {
   private plannerService = new PlannerService();
 
   async getCardsPorEquipe() {
+    return cacheWrap('cards-por-equipe', async () => {
     const [empresas, equipes, atividades] = await Promise.all([
       this.empresasService.listar(),
       this.equipesService.listar(),
@@ -38,9 +40,12 @@ export class DashboardService {
         portes,
       };
     });
+    }, 60000);
   }
 
   async getGradeEmpresas(ano: number, equipeFiltro?: string) {
+    const key = `grade-${ano}-${equipeFiltro || 'todas'}`;
+    return cacheWrap(key, async () => {
     const [empresas, atividades] = await Promise.all([
       this.empresasService.listar(),
       this.plannerService.listar(),
@@ -85,9 +90,11 @@ export class DashboardService {
 
       return { empresa: emp, meses: mesesStatus };
     });
+    }, 60000);
   }
 
   async getPerformancePorPorte() {
+    return cacheWrap('performance-por-porte', async () => {
     const empresas = await this.empresasService.listar();
     const atividades = await this.plannerService.listar();
     const portes = ['Grande', 'Médio', 'Pequeno', 'Micro'];
@@ -102,9 +109,11 @@ export class DashboardService {
 
       return { label: porte, value: perc };
     });
+    }, 60000);
   }
 
   async getConcluidasMes() {
+    return cacheWrap('concluidas-mes', async () => {
     const atividades = await this.plannerService.listar();
     const mesAtual = new Date().toISOString().slice(0, 7);
     const concluidas = atividades.filter(a =>
@@ -117,9 +126,11 @@ export class DashboardService {
       noPrazo: concluidas.filter(a => a.onTime).length,
       foraPrazo: concluidas.filter(a => !a.onTime).length,
     };
+    }, 60000);
   }
 
   async getEquipeDoMes() {
+    return cacheWrap('equipe-do-mes', async () => {
     const equipes = await this.equipesService.listar();
     const atividades = await this.plannerService.listar();
 
@@ -132,5 +143,14 @@ export class DashboardService {
 
     stats.sort((a, b) => b.perc - a.perc);
     return stats[0] || { nome: 'Alpha', atividades: 0, perc: 0, concluidas: 0 };
+    }, 60000);
+  }
+
+  clearCache() {
+    cacheClear('cards-por-equipe');
+    cacheClear('grade-');
+    cacheClear('performance-por-porte');
+    cacheClear('concluidas-mes');
+    cacheClear('equipe-do-mes');
   }
 }

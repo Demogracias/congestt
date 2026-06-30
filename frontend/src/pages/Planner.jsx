@@ -363,8 +363,46 @@ export default function Planner() {
   const [promptState, setPromptState] = useState({ open: false, title: '', label: '', onConfirm: () => {} });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: () => {} });
   const [pauseModal, setPauseModal] = useState({ open: false, id: null, step: 'tipo', tipo: 'pausa' });
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [selecting, setSelecting] = useState(false);
   const showConfirm = (message, onConfirm) => setConfirmDialog({ open: true, message, onConfirm });
   const closeConfirm = () => setConfirmDialog({ open: false, message: '', onConfirm: () => {} });
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const selectAll = (ids) => {
+    if (selectedIds.size === ids.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(ids));
+  };
+  const batchComplete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch("/api/planner/batch/complete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+      const result = await res.json();
+      toast(`${result.concluidas} concluídas, ${result.falhas} falhas`, result.falhas > 0 ? "warn" : "success");
+      setSelectedIds(new Set());
+      fetchAtividades();
+    } catch (e) { toast("Erro de rede", "error"); }
+  };
+  const batchDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    showConfirm(`Remover ${ids.length} tarefa(s)?`, async () => {
+      try {
+        const res = await fetch("/api/planner/batch/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+        const result = await res.json();
+        toast(`${result.removidas} removidas, ${result.falhas} falhas`, result.falhas > 0 ? "warn" : "success");
+        setSelectedIds(new Set());
+        fetchAtividades();
+      } catch (e) { toast("Erro de rede", "error"); }
+    });
+  };
 
   const arquivarConcluidas = (ativs) => {
     const concluidas = ativs.filter(a => a.status === 'completed').sort((a, b) => new Date(b.dataFim || 0) - new Date(a.dataFim || 0));
@@ -643,6 +681,15 @@ export default function Planner() {
           </div>
         )}
 
+      {selectedIds.size > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", background: C.purple + "11", borderRadius: 10, border: `1px solid ${C.purple}22` }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{selectedIds.size} selecionada(s)</span>
+          <Btn variant="success" onClick={batchComplete}>Concluir</Btn>
+          <Btn variant="danger" onClick={batchDelete}>Remover</Btn>
+          <Btn variant="outline" onClick={() => setSelectedIds(new Set())}>Cancelar</Btn>
+        </div>
+      )}
+
       {visao === "lista" && (
         <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
           {["ativas", "arquivadas"].map(s => (
@@ -685,30 +732,39 @@ export default function Planner() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                      {filtered.length === 0 && <div style={{ padding: 20, textAlign: "center", color: C.muted, fontSize: 12 }}>Nenhuma tarefa</div>}
-                     {filtered.map(ativ => (
-                        <Card key={ativ.id} style={{ padding: "12px 14px", cursor: "pointer", borderLeft: `3px solid ${st.color}`, marginLeft: (ativ.nivel || 0) * 12 }}
-                          onClick={() => setShowDetailModal(ativ)}>
-                          <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 4 }}>{ativ.titulo}</div>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
-                        {ativ.empresaId && <Badge label={empresas.find(e => e.id === ativ.empresaId)?.apelido || '—'} color={C.purple} />}
-                        {ativ.meses?.map(m => <Badge key={m} label={m} color={C.soft} />)}
-                      </div>
-                      {filtroEquipe && (
-                        <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>
-                          {ativ.responsaveis?.map(r => {
-                            const usr = usuarios.find(u => u.id === r);
-                            return usr ? <Badge key={r} label={usr.email.split('@')[0]} color={C.mid} /> : null;
-                          })}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>{formatTime(elapsed[ativ.id] || 0)}</div>
-                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }} onClick={e => e.stopPropagation()}>
-                        {ativ.status === 'pending' && <><Btn variant="success" onClick={() => handleAction(ativ.id, "start", { usuarioId: user?.id })}><PlayIcon /></Btn><Btn variant="outline" onClick={() => openEdit(ativ)} style={{ fontSize: 9, padding: "3px 6px" }}>Editar</Btn></>}
-                        {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => showConfirm("Concluir tarefa?", () => handleAction(ativ.id, "complete"))}><StopIcon /></Btn></>}
-                        {ativ.status === 'paused' && <Btn variant="success" onClick={() => handleAction(ativ.id, "resume", { tipo: "normal" })}><PlayIcon /> Retomar</Btn>}
-                        <Btn variant="outline" onClick={() => setShowNota({ id: ativ.id, texto: '' })}><NoteIcon /></Btn>
-                      </div>
-                    </Card>
+                   {filtered.map(ativ => (
+                         <Card key={ativ.id} style={{ padding: "12px 14px", cursor: "pointer", borderLeft: `3px solid ${st.color}`, marginLeft: (ativ.nivel || 0) * 12 }}
+                           onClick={() => { if (!selectedIds.has(ativ.id)) setShowDetailModal(ativ); }}>
+                           <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                             <div onClick={e => { e.stopPropagation(); toggleSelect(ativ.id); }} style={{ padding: 2, cursor: "pointer", flexShrink: 0 }}>
+                               <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${selectedIds.has(ativ.id) ? C.lilac : C.ghost}`, background: selectedIds.has(ativ.id) ? C.lilac : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                 {selectedIds.has(ativ.id) && <span style={{ color: C.white, fontSize: 11, fontWeight: 700 }}>&#10003;</span>}
+                               </div>
+                             </div>
+                             <div style={{ flex: 1 }}>
+                           <div style={{ fontWeight: 600, fontSize: 13, color: C.text, marginBottom: 4 }}>{ativ.titulo}</div>
+                       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+                         {ativ.empresaId && <Badge label={empresas.find(e => e.id === ativ.empresaId)?.apelido || '—'} color={C.purple} />}
+                         {ativ.meses?.map(m => <Badge key={m} label={m} color={C.soft} />)}
+                       </div>
+                       {filtroEquipe && (
+                         <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>
+                           {ativ.responsaveis?.map(r => {
+                             const usr = usuarios.find(u => u.id === r);
+                             return usr ? <Badge key={r} label={usr.email.split('@')[0]} color={C.mid} /> : null;
+                           })}
+                         </div>
+                       )}
+                       <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>{formatTime(elapsed[ativ.id] || 0)}</div>
+                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }} onClick={e => e.stopPropagation()}>
+                         {ativ.status === 'pending' && <><Btn variant="success" onClick={() => handleAction(ativ.id, "start", { usuarioId: user?.id })}><PlayIcon /></Btn><Btn variant="outline" onClick={() => openEdit(ativ)} style={{ fontSize: 9, padding: "3px 6px" }}>Editar</Btn></>}
+                         {ativ.status === 'running' && <><Btn variant="warn" onClick={() => handlePause(ativ.id)}><PauseIcon /></Btn><Btn variant="success" onClick={() => showConfirm("Concluir tarefa?", () => handleAction(ativ.id, "complete"))}><StopIcon /></Btn></>}
+                         {ativ.status === 'paused' && <Btn variant="success" onClick={() => handleAction(ativ.id, "resume", { tipo: "normal" })}><PlayIcon /> Retomar</Btn>}
+                         <Btn variant="outline" onClick={() => setShowNota({ id: ativ.id, texto: '' })}><NoteIcon /></Btn>
+                       </div>
+                     </div>
+                     </div>
+                   </Card>
                   ))}
                 </div>
               </div>

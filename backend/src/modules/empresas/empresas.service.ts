@@ -29,7 +29,7 @@ export class EmpresasService {
   private persistence = new SqlitePersistence<Empresa>('empresas');
   private gruposPersistence = new SqlitePersistence<GrupoEconomico>('grupos_economicos');
 
-  async listar(filtro?: { porte?: string; equipe?: string; atividade?: string; grupoEconomico?: string; search?: string }) {
+  async listar(filtro?: { porte?: string; equipe?: string; atividade?: string; grupoEconomico?: string; search?: string; page?: number; pageSize?: number }) {
     let result = this.persistence.getAll();
     if (filtro?.porte && filtro.porte !== 'Todos') result = result.filter(e => e.porte === filtro.porte);
     if (filtro?.atividade && filtro.atividade !== 'Todos') result = result.filter(e => e.atividade === filtro.atividade);
@@ -38,6 +38,14 @@ export class EmpresasService {
     if (filtro?.search) {
       const s = filtro.search.toLowerCase();
       result = result.filter(e => e.razaoSocial.toLowerCase().includes(s) || e.apelido.toLowerCase().includes(s) || e.cnpj.includes(s) || e.grupoEconomico.toLowerCase().includes(s));
+    }
+    if (filtro?.page || filtro?.pageSize) {
+      const total = result.length;
+      const page = Math.max(1, filtro.page || 1);
+      const pageSize = Math.min(200, Math.max(1, filtro.pageSize || 100));
+      const start = (page - 1) * pageSize;
+      const data = result.slice(start, start + pageSize);
+      return { data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) } as any;
     }
     return result;
   }

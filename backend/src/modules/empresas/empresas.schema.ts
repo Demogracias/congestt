@@ -27,4 +27,6 @@ export const listarEmpresasSchema = z.object({
   atividade: z.string().optional(),
   grupoEconomico: z.string().optional(),
   search: z.string().optional(),
+  page: z.string().optional(),
+  pageSize: z.string().optional(),
 });

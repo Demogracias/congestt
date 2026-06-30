@@ -10,6 +10,7 @@ dotenv.config();
 import logger from './utils/logger';
 import { getMetrics, httpRequestCounter, httpErrorCounter, activeRequests } from './utils/metrics';
 import { getDatabase } from './database/Database';
+import { initWebSocket, getWssStats } from './utils/websocket';
 
 const startTime = Date.now();
 
@@ -67,6 +68,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     db: dbOk ? 'connected' : 'disconnected',
+    ws: getWssStats().connected > 0 ? 'connected' : 'no_clients',
   });
 });
 
@@ -130,6 +132,7 @@ function getLocalIP() {
 
 const server = app.listen(PORT, HOST, () => {
   const ip = getLocalIP();
+  initWebSocket(server);
   logger.info({ port: PORT, host: HOST, ip }, 'ConGestt iniciado');
   console.log(`\n  ConGestt rodando em:`);
   console.log(`  Local:   http://localhost:${PORT}`);
