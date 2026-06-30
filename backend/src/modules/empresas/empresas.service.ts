@@ -1,6 +1,7 @@
 import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
 import { isValidCNPJ, formatCNPJ } from '../../utils/cnpj';
 import { consultarCNPJ, consultarFiliais } from '../../utils/receita-api';
+import { ValidationError, NotFoundError } from '../../utils/errors';
 
 interface GrupoEconomico {
   id: string;
@@ -42,55 +43,57 @@ export class EmpresasService {
   }
 
   async buscarPorId(id: string) {
-    return this.persistence.getById(id) || null;
+    const e = this.persistence.getById(id);
+    if (!e) throw new NotFoundError('Empresa não encontrada');
+    return e;
   }
 
   async consultar(cnpj: string) {
     const clean = cnpj.replace(/\D/g, '');
-    if (!isValidCNPJ(clean)) throw new Error('CNPJ inválido');
+    if (!isValidCNPJ(clean)) throw new ValidationError('CNPJ inválido');
     const data = await consultarCNPJ(clean);
-    if (!data) throw new Error('CNPJ não encontrado na Receita Federal');
+    if (!data) throw new NotFoundError('CNPJ não encontrado na Receita Federal');
     const filiais = await consultarFiliais(clean);
     return { empresa: data, filiais };
   }
 
   async criar(dados: {
-    cnpj: string; razaoSocial: string; apelido: string;
-    porte: string; atividade: string; grupoEconomico?: string;
-    equipe: string; tipo: 'Matriz' | 'Filial'; matrizCnpj?: string;
-    tipoFechamento: string; diaFechamento: number;
+    cnpj: string; razaoSocial: string; apelido?: string;
+    porte?: string; atividade?: string; grupoEconomico?: string;
+    equipe?: string; tipo?: 'Matriz' | 'Filial'; matrizCnpj?: string;
+    tipoFechamento?: string; diaFechamento?: number;
   }) {
     const cleanCNPJ = dados.cnpj.replace(/\D/g, '');
-    if (!isValidCNPJ(cleanCNPJ)) throw new Error('CNPJ inválido');
+    if (!isValidCNPJ(cleanCNPJ)) throw new ValidationError('CNPJ inválido');
 
     const todas = this.persistence.getAll();
-    if (todas.find(e => e.cnpj.replace(/\D/g, '') === cleanCNPJ)) throw new Error('CNPJ já cadastrado');
+    if (todas.find(e => e.cnpj.replace(/\D/g, '') === cleanCNPJ)) throw new ValidationError('CNPJ já cadastrado');
 
     if (dados.tipo === 'Matriz') {
       const ge = (dados.grupoEconomico || '').toLowerCase();
       const hasMatriz = todas.find(e => (e.grupoEconomico || '').toLowerCase() === ge && e.tipo === 'Matriz');
-      if (hasMatriz && dados.grupoEconomico) throw new Error('Grupo econômico já possui matriz cadastrada');
+      if (hasMatriz && dados.grupoEconomico) throw new ValidationError('Grupo econômico já possui matriz cadastrada');
     }
 
     if (dados.tipo === 'Filial') {
-      if (!dados.matrizCnpj) throw new Error('Filial deve estar vinculada a uma matriz');
+      if (!dados.matrizCnpj) throw new ValidationError('Filial deve estar vinculada a uma matriz');
       const matrizLocal = todas.find(e => e.cnpj.replace(/\D/g, '') === dados.matrizCnpj!.replace(/\D/g, '') && e.tipo === 'Matriz');
-      if (!matrizLocal) throw new Error('Matriz não encontrada no sistema. Cadastre a matriz primeiro.');
+      if (!matrizLocal) throw new ValidationError('Matriz não encontrada no sistema. Cadastre a matriz primeiro.');
     }
 
     const nova: Empresa = {
       id: generateId(),
       cnpj: formatCNPJ(cleanCNPJ),
       razaoSocial: dados.razaoSocial,
-      apelido: dados.apelido,
-      porte: dados.porte,
-      atividade: dados.atividade,
+      apelido: dados.apelido || dados.razaoSocial.split(' ')[0],
+      porte: dados.porte || 'Pequeno',
+      atividade: dados.atividade || 'Serviço',
       grupoEconomico: dados.grupoEconomico || '',
-      equipe: dados.equipe,
-      tipo: dados.tipo,
+      equipe: dados.equipe || '',
+      tipo: dados.tipo || 'Matriz',
       matrizCnpj: dados.matrizCnpj,
-      tipoFechamento: dados.tipoFechamento,
-      diaFechamento: dados.diaFechamento,
+      tipoFechamento: dados.tipoFechamento || 'Mensal',
+      diaFechamento: dados.diaFechamento || 15,
       createdAt: new Date().toISOString().split('T')[0],
     };
 
@@ -100,12 +103,12 @@ export class EmpresasService {
 
   async atualizar(id: string, dados: Partial<Empresa>) {
     const existente = this.persistence.getById(id);
-    if (!existente) throw new Error('Empresa não encontrada');
+    if (!existente) throw new NotFoundError('Empresa não encontrada');
     if (dados.cnpj) {
       const clean = dados.cnpj.replace(/\D/g, '');
-      if (!isValidCNPJ(clean)) throw new Error('CNPJ inválido');
+      if (!isValidCNPJ(clean)) throw new ValidationError('CNPJ inválido');
       const dup = this.persistence.getAll().find(e => e.id !== id && e.cnpj.replace(/\D/g, '') === clean);
-      if (dup) throw new Error('CNPJ já cadastrado');
+      if (dup) throw new ValidationError('CNPJ já cadastrado');
     }
     await this.persistence.update(id, dados);
     return this.persistence.getById(id);
@@ -113,7 +116,7 @@ export class EmpresasService {
 
   async remover(id: string) {
     const ok = await this.persistence.delete(id);
-    if (!ok) throw new Error('Empresa não encontrada');
+    if (!ok) throw new NotFoundError('Empresa não encontrada');
   }
 
   async gruposEconomicos() {
@@ -123,9 +126,9 @@ export class EmpresasService {
   }
 
   async criarGrupo(nome: string) {
-    if (!nome.trim()) throw new Error('Nome do grupo é obrigatório');
+    if (!nome?.trim()) throw new ValidationError('Nome do grupo é obrigatório');
     const existente = this.gruposPersistence.getAll().find(g => g.nome === nome.trim());
-    if (existente) throw new Error('Grupo já existe');
+    if (existente) throw new ValidationError('Grupo já existe');
     const novo: GrupoEconomico = {
       id: generateId(),
       nome: nome.trim(),

@@ -1,85 +1,50 @@
 import express from 'express';
 import { EquipesService } from './equipes.service';
 import { SqlitePersistence } from '../../database/SqlitePersistence';
+import { asyncHandler } from '../../middleware/asyncHandler';
 
 const router = express.Router();
 const service = new EquipesService();
 
-router.get('/', async (req, res) => {
-  try {
-    const result = await service.listar();
-    res.json(result);
-  } catch (error: any) {
-    console.error('[Equipes] GET /', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
+router.get('/', asyncHandler(async (req, res) => {
+  const result = await service.listar();
+  res.json(result);
+}));
 
-router.get('/usuarios', async (req, res) => {
-  try {
-    const usersPersistence = new SqlitePersistence<{ id: string; email: string; role: string; level: number }>('users');
-    const users = usersPersistence.getAll().map(u => ({ id: u.id, email: u.email, role: u.role, level: u.level }));
-    res.json(users);
-  } catch (error: any) {
-    console.error('[Equipes] GET /usuarios', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
+router.get('/usuarios', asyncHandler(async (req, res) => {
+  const usersPersistence = new SqlitePersistence<{ id: string; email: string; role: string; level: number }>('users');
+  const users = usersPersistence.getAll().map(u => ({ id: u.id, email: u.email, role: u.role, level: u.level }));
+  res.json(users);
+}));
 
-router.get('/:id', async (req, res) => {
-  try {
-    const equipe = await service.buscarPorId(req.params.id);
-    if (!equipe) return res.status(404).json({ message: 'Equipe não encontrada' });
-    res.json(equipe);
-  } catch (error: any) {
-    console.error('[Equipes] GET /:id', error);
-    res.status(500).json({ message: 'Erro interno do servidor' });
-  }
-});
+router.get('/:id', asyncHandler(async (req, res) => {
+  const equipe = await service.buscarPorId(req.params.id);
+  res.json(equipe);
+}));
 
-router.post('/', async (req, res) => {
-  try {
-    const equipe = await service.criar(req.body);
-    res.status(201).json(equipe);
-  } catch (error: any) {
-    res.status(400).json({ message: error.message });
-  }
-});
+router.post('/', asyncHandler(async (req, res) => {
+  const equipe = await service.criar(req.body);
+  res.status(201).json(equipe);
+}));
 
-router.put('/:id', async (req, res) => {
-  try {
-    const equipe = await service.atualizar(req.params.id, req.body);
-    res.json(equipe);
-  } catch (error: any) {
-    res.status(400).json({ message: error.message });
-  }
-});
+router.put('/:id', asyncHandler(async (req, res) => {
+  const equipe = await service.atualizar(req.params.id, req.body);
+  res.json(equipe);
+}));
 
-router.post('/:id/membros', async (req, res) => {
-  try {
-    const membro = await service.adicionarMembro(req.params.id, req.body);
-    res.status(201).json(membro);
-  } catch (error: any) {
-    res.status(400).json({ message: error.message });
-  }
-});
+router.post('/:id/membros', asyncHandler(async (req, res) => {
+  const membro = await service.adicionarMembro(req.params.id, req.body);
+  res.status(201).json(membro);
+}));
 
-router.delete('/:id/membros/:membroId', async (req, res) => {
-  try {
-    await service.removerMembro(req.params.id, req.params.membroId);
-    res.status(204).send();
-  } catch (error: any) {
-    res.status(404).json({ message: error.message });
-  }
-});
+router.delete('/:id/membros/:membroId', asyncHandler(async (req, res) => {
+  await service.removerMembro(req.params.id, req.params.membroId);
+  res.status(204).send();
+}));
 
-router.delete('/:id', async (req, res) => {
-  try {
-    await service.remover(req.params.id);
-    res.status(204).send();
-  } catch (error: any) {
-    res.status(404).json({ message: error.message });
-  }
-});
+router.delete('/:id', asyncHandler(async (req, res) => {
+  await service.remover(req.params.id);
+  res.status(204).send();
+}));
 
 export default router;

@@ -1,4 +1,5 @@
 import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
+import { ValidationError, NotFoundError } from '../../utils/errors';
 
 export interface FechamentoContabil {
   id: string;
@@ -32,7 +33,9 @@ export class FechamentoService {
   }
 
   async buscarPorId(id: string) {
-    return this.fechamentos.getById(id) || null;
+    const f = this.fechamentos.getById(id);
+    if (!f) throw new NotFoundError('Fechamento não encontrado');
+    return f;
   }
 
   async historicoPorFechamento(fechamentoId: string) {
@@ -41,7 +44,7 @@ export class FechamentoService {
 
   async iniciar(empresaId: string, periodo: string, usuarioId: string = '1') {
     const existente = this.fechamentos.getAll().find(f => f.empresaId === empresaId && f.periodo === periodo);
-    if (existente) throw new Error('Já existe fechamento para esta empresa/período');
+    if (existente) throw new ValidationError('Já existe fechamento para esta empresa/período');
 
     const novo: FechamentoContabil = {
       id: generateId(),
@@ -67,12 +70,12 @@ export class FechamentoService {
 
   async concluir(id: string, usuarioId: string, nivelUsuario: number) {
     if (nivelUsuario < 5) {
-      throw new Error('Apenas Supervisor (nível 5+) pode aprovar fechamento');
+      throw new ValidationError('Apenas Supervisor (nível 5+) pode aprovar fechamento');
     }
 
     const fech = this.fechamentos.getById(id);
-    if (!fech) throw new Error('Fechamento não encontrado');
-    if (fech.status === 'concluido') throw new Error('Fechamento já concluído');
+    if (!fech) throw new NotFoundError('Fechamento não encontrado');
+    if (fech.status === 'concluido') throw new ValidationError('Fechamento já concluído');
 
     await this.fechamentos.update(id, {
       status: 'concluido',
@@ -94,7 +97,7 @@ export class FechamentoService {
 
   async adicionarJustificativa(id: string, justificativa: string, usuarioId: string = '1') {
     const fech = this.fechamentos.getById(id);
-    if (!fech) throw new Error('Fechamento não encontrado');
+    if (!fech) throw new NotFoundError('Fechamento não encontrado');
 
     await this.fechamentos.update(id, {
       justificativa,

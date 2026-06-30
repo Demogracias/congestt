@@ -1,4 +1,5 @@
 import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
+import { AppError, ValidationError, NotFoundError } from '../../utils/errors';
 
 export interface Pausa {
   inicio: string;
@@ -93,14 +94,14 @@ export class PlannerService {
     recorrencia?: { tipo: 'semanal' | 'mensal' | 'anual'; intervalo: number };
     paiId?: string;
   }) {
-    if (!dados.titulo) throw new Error('Título é obrigatório');
-    if (!dados.dataInicio || !dados.dataFim) throw new Error('Data início e data fim são obrigatórias');
+    if (!dados.titulo) throw new ValidationError('Título é obrigatório');
+    if (!dados.dataInicio || !dados.dataFim) throw new ValidationError('Data início e data fim são obrigatórias');
 
     let nivel = 0;
 
     if (dados.paiId) {
       const pai = this.persistence.getById(dados.paiId);
-      if (!pai) throw new Error('Atividade pai não encontrada');
+      if (!pai) throw new NotFoundError('Atividade pai não encontrada');
       nivel = (pai.nivel || 0) + 1;
     }
 
@@ -222,8 +223,8 @@ export class PlannerService {
 
   async iniciarTimer(id: string, usuarioId: string) {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
-    if (atv.status === 'completed') throw new Error('Atividade já concluída');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
+    if (atv.status === 'completed') throw new ValidationError('Atividade já concluída');
 
     if (atv.bloqueadoPor && atv.bloqueadoPor.length > 0) {
       const bloqueadoresIncompletos = atv.bloqueadoPor.filter(bid => {
@@ -238,7 +239,7 @@ export class PlannerService {
 
     const todas = this.atividades;
     const running = todas.find(a => a.status === 'running' && a.responsaveis.includes(usuarioId));
-    if (running && running.id !== id) throw new Error('Usuário já possui atividade em andamento');
+    if (running && running.id !== id) throw new ValidationError('Usuário já possui atividade em andamento');
 
     const agora = new Date().toISOString();
     const historico = [...(atv.historico || []), { id: generateId(), acao: 'iniciada', detalhes: 'Timer iniciado', data: agora, usuario: usuarioId }];
@@ -247,11 +248,11 @@ export class PlannerService {
   }
 
   async pausarTimer(id: string, justificativa: string, tipo: 'pausa' | 'fim_expediente' = 'pausa', tarefaVinculadaId?: string) {
-    if (tipo === 'pausa' && justificativa.length < 3) throw new Error('Justificativa deve ter no mínimo 3 caracteres');
+    if (tipo === 'pausa' && justificativa.length < 3) throw new ValidationError('Justificativa deve ter no mínimo 3 caracteres');
 
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
-    if (atv.status !== 'running') throw new Error('Atividade não está em execução');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
+    if (atv.status !== 'running') throw new ValidationError('Atividade não está em execução');
 
     const agora = new Date().toISOString();
     let timerTotal = atv.timerTotal;
@@ -270,8 +271,8 @@ export class PlannerService {
 
   async retomarTimer(id: string, tipo: 'normal' | 'inicio_expediente' = 'normal') {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
-    if (atv.status !== 'paused') throw new Error('Atividade não está pausada');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
+    if (atv.status !== 'paused') throw new ValidationError('Atividade não está pausada');
 
     const pausas = [...(atv.pausas || [])];
     const ultimaPausa = pausas[pausas.length - 1];
@@ -289,7 +290,7 @@ export class PlannerService {
 
   async concluir(id: string) {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
 
     const agora = new Date();
     const agoraISO = agora.toISOString();
@@ -318,12 +319,12 @@ export class PlannerService {
   }
 
   async estenderPrazo(id: string, dias: number, justificativa: string) {
-    if (dias <= 0) throw new Error('Dias deve ser positivo');
-    if (justificativa.length < 3) throw new Error('Justificativa deve ter no mínimo 3 caracteres');
+    if (dias <= 0) throw new ValidationError('Dias deve ser positivo');
+    if (justificativa.length < 3) throw new ValidationError('Justificativa deve ter no mínimo 3 caracteres');
 
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
-    if (atv.status === 'completed') throw new Error('Atividade já concluída');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
+    if (atv.status === 'completed') throw new ValidationError('Atividade já concluída');
 
     const novaData = new Date(atv.dataFim);
     novaData.setDate(novaData.getDate() + dias);
@@ -341,7 +342,7 @@ export class PlannerService {
 
   async adicionarObservacao(id: string, texto: string, autor: string) {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
 
     const bloco: BlocoNota = { id: generateId(), texto, criadoEm: new Date().toISOString(), autor };
     const blocosNota = [...(atv.blocosNota || []), bloco];
@@ -364,19 +365,19 @@ export class PlannerService {
 
   async atualizar(id: string, dados: Partial<Atividade>) {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
     if (dados.dataFim && dados.dataFim !== atv.dataFim && atv.status !== 'pending') {
-      throw new Error('Não é possível alterar data fim após iniciar a atividade');
+      throw new ValidationError('Não é possível alterar data fim após iniciar a atividade');
     }
     
     if (dados.paiId !== undefined && dados.paiId !== atv.paiId) {
-      if (dados.paiId === id) throw new Error('Uma atividade não pode ser pai de si mesma');
+      if (dados.paiId === id) throw new ValidationError('Uma atividade não pode ser pai de si mesma');
       
       // Check for circular dependency
       let currentPaiId: string | undefined = dados.paiId;
       const visited = new Set<string>([id]);
       while (currentPaiId) {
-        if (visited.has(currentPaiId)) throw new Error('Circular dependency detected: a task cannot be a descendant of itself');
+        if (visited.has(currentPaiId)) throw new ValidationError('Circular dependency detected: a task cannot be a descendant of itself');
         visited.add(currentPaiId);
         const pai = this.persistence.getById(currentPaiId);
         currentPaiId = pai?.paiId;
@@ -409,10 +410,10 @@ export class PlannerService {
   }
 
   async adicionarBloqueio(id: string, bloqueadorId: string) {
-    if (id === bloqueadorId) throw new Error('Uma tarefa não pode bloquear a si mesma');
+    if (id === bloqueadorId) throw new ValidationError('Uma tarefa não pode bloquear a si mesma');
     const atv = this.persistence.getById(id);
     const bloqueador = this.persistence.getById(bloqueadorId);
-    if (!atv || !bloqueador) throw new Error('Atividade não encontrada');
+    if (!atv || !bloqueador) throw new NotFoundError('Atividade não encontrada');
 
     const bloqueadoPor = [...(atv.bloqueadoPor || []), bloqueadorId];
     const historico = [...(atv.historico || []), { 
@@ -428,7 +429,7 @@ export class PlannerService {
 
   async removerBloqueio(id: string, bloqueadorId: string) {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
 
     const bloqueadoPor = (atv.bloqueadoPor || []).filter(bid => bid !== bloqueadorId);
     const historico = [...(atv.historico || []), { 
@@ -444,7 +445,7 @@ export class PlannerService {
 
   async remover(id: string) {
     const atv = this.persistence.getById(id);
-    if (!atv) throw new Error('Atividade não encontrada');
+    if (!atv) throw new NotFoundError('Atividade não encontrada');
 
     if (atv.paiId) {
       const pai = this.persistence.getById(atv.paiId);
@@ -460,7 +461,7 @@ export class PlannerService {
     }
 
     const ok = await this.persistence.delete(id);
-    if (!ok) throw new Error('Erro ao remover atividade');
+    if (!ok) throw new ValidationError('Erro ao remover atividade');
   }
 
   async verificarAlertas(): Promise<any[]> {

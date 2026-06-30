@@ -1,4 +1,5 @@
 import { SqlitePersistence, generateId } from '../../database/SqlitePersistence';
+import { ValidationError, NotFoundError } from '../../utils/errors';
 
 export interface ContaContabil {
   id: string;
@@ -23,7 +24,9 @@ export class ContasService {
   }
 
   async buscarPorId(id: string) {
-    return this.persistence.getById(id) || null;
+    const c = this.persistence.getById(id);
+    if (!c) throw new NotFoundError('Conta não encontrada');
+    return c;
   }
 
   async buscarPorEmpresa(empresaId: string) {
@@ -40,13 +43,13 @@ export class ContasService {
   }) {
     const todas = this.persistence.getAll();
     if (todas.find(c => c.codigo === dados.codigo && c.empresaId === (dados.empresaId || ''))) {
-      throw new Error('Código de conta já existe para esta empresa');
+      throw new ValidationError('Código de conta já existe para esta empresa');
     }
 
     if (dados.contaPaiId) {
       const pai = todas.find(c => c.id === dados.contaPaiId);
-      if (!pai) throw new Error('Conta pai não encontrada');
-      if (pai.natureza !== 'Sintética') throw new Error('Apenas contas sintéticas podem ter filhos');
+      if (!pai) throw new ValidationError('Conta pai não encontrada');
+      if (pai.natureza !== 'Sintética') throw new ValidationError('Apenas contas sintéticas podem ter filhos');
     }
 
     const nova: ContaContabil = {
@@ -72,8 +75,8 @@ export class ContasService {
     const tiposValidos = ['Ativo', 'Passivo', 'DRE'];
     const naturezasValidas = ['Sintética', 'Analítica'];
     for (const c of contas) {
-      if (!tiposValidos.includes(c.tipo)) throw new Error(`Tipo inválido "${c.tipo}" para conta ${c.codigo}. Use Ativo, Passivo ou DRE.`);
-      if (!naturezasValidas.includes(c.natureza)) throw new Error(`Natureza inválida "${c.natureza}" para conta ${c.codigo}. Use Sintética ou Analítica.`);
+      if (!tiposValidos.includes(c.tipo)) throw new ValidationError(`Tipo inválido "${c.tipo}" para conta ${c.codigo}. Use Ativo, Passivo ou DRE.`);
+      if (!naturezasValidas.includes(c.natureza)) throw new ValidationError(`Natureza inválida "${c.natureza}" para conta ${c.codigo}. Use Sintética ou Analítica.`);
       let paiId = c.contaPaiId;
       if (paiId && !todas.find(t => t.id === paiId)) paiId = undefined;
       const nova: ContaContabil = {
@@ -96,9 +99,9 @@ export class ContasService {
 
   async desativar(id: string) {
     const conta = this.persistence.getById(id);
-    if (!conta) throw new Error('Conta não encontrada');
+    if (!conta) throw new NotFoundError('Conta não encontrada');
     const filhos = this.persistence.getAll().filter(c => c.contaPaiId === id);
-    if (filhos.length > 0) throw new Error('Desative contas filhas primeiro');
+    if (filhos.length > 0) throw new ValidationError('Desative contas filhas primeiro');
     await this.persistence.update(id, { ativa: false });
     return this.persistence.getById(id);
   }

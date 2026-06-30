@@ -36,6 +36,7 @@ app.use(express.json());
 
 import authRouter from './modules/auth/auth.controller';
 import { authMiddleware } from './middleware/authMiddleware';
+import { errorMiddleware } from './middleware/errorMiddleware';
 
 // Auth routes são montadas PRIMEIRO (não passam pelo middleware)
 app.use('/api/auth', authRouter);
@@ -72,6 +73,9 @@ app.get('*', (req, res) => {
   }
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
+
+// Error middleware (must be after all routes)
+app.use(errorMiddleware);
 
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
